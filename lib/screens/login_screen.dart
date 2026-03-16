@@ -3,7 +3,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:flutter/gestures.dart';
-import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/foundation.dart' show kIsWeb, defaultTargetPlatform;
 
 import '../services/firestore_service.dart';
 import '../state/app_state.dart';
@@ -20,6 +20,43 @@ class _LoginScreenState extends State<LoginScreen> {
   final _passwordController = TextEditingController();
   bool _obscurePassword = true;
   bool _isLoading = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _checkRedirectResult();
+  }
+
+  Future<void> _checkRedirectResult() async {
+    if (!kIsWeb) return;
+
+    try {
+      final UserCredential userCredential = await FirebaseAuth.instance.getRedirectResult();
+      final User? user = userCredential.user;
+
+      if (user != null) {
+        setState(() => _isLoading = true);
+        final db = FirestoreService();
+        final username = user.displayName ?? user.email?.split('@')[0] ?? 'GoogleUser';
+        
+        var profile = await db.getUserProfileByUid(user.uid);
+        if (profile == null) {
+          await db.createUserProfile(username, email: user.email, uid: user.uid);
+        }
+        AppState.currentUsername = username;
+
+        if (mounted) {
+          Navigator.pushReplacementNamed(context, '/grade');
+        }
+      }
+    } catch (e) {
+      debugPrint('Redirect Auth Error: $e');
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
+    }
+  }
 
   Future<void> _handleLogin() async {
     final email = _emailController.text.trim();
@@ -115,7 +152,12 @@ class _LoginScreenState extends State<LoginScreen> {
 
       if (kIsWeb) {
         final provider = GoogleAuthProvider();
-        userCredential = await FirebaseAuth.instance.signInWithPopup(provider);
+        if (defaultTargetPlatform == TargetPlatform.android || defaultTargetPlatform == TargetPlatform.iOS) {
+          await FirebaseAuth.instance.signInWithRedirect(provider);
+          return;
+        } else {
+          userCredential = await FirebaseAuth.instance.signInWithPopup(provider);
+        }
       } else {
         final GoogleSignIn googleSignIn = GoogleSignIn.instance;
         final GoogleSignInAccount googleUser = await googleSignIn.authenticate();
