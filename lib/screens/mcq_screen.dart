@@ -92,9 +92,10 @@ class _McqScreenState extends State<McqScreen> {
       final args = ModalRoute.of(context)?.settings.arguments as Map?;
       final subjectId = args?['subjectId'] as String? ?? '';
       final grade = args?['grade'] as int? ?? 10;
+      final medium = args?['medium'] as String?; // Added
       
       final db = FirestoreService();
-      final questions = await db.getQuestions(subjectId, grade);
+      final questions = await db.getQuestions(subjectId, grade, medium: medium);
       
       if (mounted) {
         setState(() {

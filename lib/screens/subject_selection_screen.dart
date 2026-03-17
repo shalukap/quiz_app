@@ -140,15 +140,7 @@ class SubjectSelectionScreen extends StatelessWidget {
                     return _SubjectCard(
                       subject: subject,
                       iconData: iconData,
-                      onTap: () => Navigator.pushNamed(
-                        context,
-                        '/quiz',
-                        arguments: {
-                          'grade': grade,
-                          'subjectId': subject.id,
-                          'subjectName': subject.name,
-                        },
-                      ),
+                      onTap: () => _showMediumSelection(context, subject, grade),
                     );
                   },
                 );
@@ -188,6 +180,84 @@ class SubjectSelectionScreen extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+
+  void _showMediumSelection(BuildContext context, Subject subject, int grade) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: const Color(0xFF0F172A),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (context) {
+        return Container(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Select Medium',
+                style: GoogleFonts.inter(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w700,
+                  color: Colors.white,
+                ),
+              ),
+              const SizedBox(height: 16),
+              ...['English', 'Sinhala', 'Tamil'].map((medium) {
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 12),
+                  child: GestureDetector(
+                    onTap: () {
+                      Navigator.pop(context); // Close sheet
+                      Navigator.pushNamed(
+                        context,
+                        '/quiz',
+                        arguments: {
+                          'grade': grade,
+                          'subjectId': subject.id,
+                          'subjectName': subject.name,
+                          'medium': medium,
+                        },
+                      );
+                    },
+                    child: Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF1E293B),
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(
+                          color: Colors.white.withValues(alpha: 0.05),
+                        ),
+                      ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(
+                            medium,
+                            style: GoogleFonts.inter(
+                              fontSize: 15,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.white,
+                            ),
+                          ),
+                          const Icon(
+                            Icons.arrow_forward_ios_rounded,
+                            color: Colors.white38,
+                            size: 16,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                );
+              }),
+            ],
+          ),
+        );
+      },
     );
   }
 }
