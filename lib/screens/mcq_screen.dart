@@ -143,6 +143,26 @@ class _McqScreenState extends State<McqScreen> {
               style: GoogleFonts.inter(color: Colors.white70),
             ),
           ),
+          TextButton(
+            onPressed: () {
+              Navigator.pop(context); // Close dialog
+              Navigator.pushNamed(
+                context,
+                '/review_answers',
+                arguments: {
+                  'questions': _questions!,
+                  'userAnswers': _userAnswers,
+                },
+              );
+            },
+            child: Text(
+              'Review Answers',
+              style: GoogleFonts.inter(
+                color: const Color(0xFF2563EB),
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
           ElevatedButton(
             onPressed: () {
               Navigator.pop(context);

@@ -12,6 +12,7 @@ import 'screens/subject_selection_screen.dart';
 import 'screens/mcq_screen.dart';
 import 'screens/leaderboard_screen.dart';
 import 'screens/profile_screen.dart';
+import 'screens/review_answers_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -59,6 +60,7 @@ class QuizApp extends StatelessWidget {
         '/quiz': (context) => const McqScreen(),
         '/leaderboard': (context) => const LeaderboardScreen(),
         '/profile': (context) => const ProfileScreen(),
+        '/review_answers': (context) => const ReviewAnswersScreen(),
       },
     );
   }

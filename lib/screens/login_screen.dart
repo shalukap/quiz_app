@@ -152,11 +152,12 @@ class _LoginScreenState extends State<LoginScreen> {
 
       if (kIsWeb) {
         final provider = GoogleAuthProvider();
-        if (defaultTargetPlatform == TargetPlatform.android || defaultTargetPlatform == TargetPlatform.iOS) {
+        try {
+          userCredential = await FirebaseAuth.instance.signInWithPopup(provider);
+        } catch (e) {
+          debugPrint('Popup sign-in failed/unimplemented, falling back to redirect: $e');
           await FirebaseAuth.instance.signInWithRedirect(provider);
           return;
-        } else {
-          userCredential = await FirebaseAuth.instance.signInWithPopup(provider);
         }
       } else {
         final GoogleSignIn googleSignIn = GoogleSignIn.instance;

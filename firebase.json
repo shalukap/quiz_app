@@ -1,1 +1,39 @@
-{"firestore":{"rules":"firestore.rules"},"flutter":{"platforms":{"android":{"default":{"projectId":"quizapp-e7f6f","appId":"1:1038214637528:android:a2b4a28338a8dd027374ad","fileOutput":"android/app/google-services.json"}},"dart":{"lib/firebase_options.dart":{"projectId":"quizapp-e7f6f","configurations":{"android":"1:1038214637528:android:a2b4a28338a8dd027374ad","web":"1:1038214637528:web:7a91f8afb8c7fe7c7374ad"}}}}}}
+{
+  "firestore": {
+    "rules": "firestore.rules"
+  },
+  "flutter": {
+    "platforms": {
+      "android": {
+        "default": {
+          "projectId": "quizapp-e7f6f",
+          "appId": "1:1038214637528:android:a2b4a28338a8dd027374ad",
+          "fileOutput": "android/app/google-services.json"
+        }
+      },
+      "dart": {
+        "lib/firebase_options.dart": {
+          "projectId": "quizapp-e7f6f",
+          "configurations": {
+            "android": "1:1038214637528:android:a2b4a28338a8dd027374ad",
+            "web": "1:1038214637528:web:7a91f8afb8c7fe7c7374ad"
+          }
+        }
+      }
+    }
+  },
+  "hosting": {
+    "public": "build/web",
+    "ignore": [
+      "firebase.json",
+      "**/.*",
+      "**/node_modules/**"
+    ],
+    "rewrites": [
+      {
+        "source": "**",
+        "destination": "/index.html"
+      }
+    ]
+  }
+}
