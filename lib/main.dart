@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:google_sign_in/google_sign_in.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'firebase_options.dart';
 
 import 'screens/login_screen.dart';
@@ -18,11 +19,13 @@ void main() async {
     options: DefaultFirebaseOptions.currentPlatform,
   );
   
-  // Initialize Google Sign-In
-  try {
-    await GoogleSignIn.instance.initialize();
-  } catch (e) {
-    debugPrint('Google Sign-In failed to initialize: $e');
+  // Initialize Google Sign-In (Native only)
+  if (!kIsWeb) {
+    try {
+      await GoogleSignIn.instance.initialize();
+    } catch (e) {
+      debugPrint('Google Sign-In failed to initialize: $e');
+    }
   }
   
   runApp(const QuizApp());
