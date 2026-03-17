@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'dart:async'; // Added for Timer
 import 'package:google_fonts/google_fonts.dart';
 import '../services/firestore_service.dart';
 import '../models/quiz_models.dart';
@@ -23,6 +24,60 @@ class _McqScreenState extends State<McqScreen> {
   List<int> _userAnswers = [];
   bool _isSaving = false;
 
+  Timer? _timer;
+  int _secondsRemaining = 0;
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    super.dispose();
+  }
+
+  void _startTimerForQuestion() {
+    _timer?.cancel();
+    if (_questions == null || _questions!.isEmpty) return;
+
+    final question = _questions![_currentQuestion];
+    final limit = question.timeLimit ?? 30; // Default to 30s
+
+    setState(() {
+      _secondsRemaining = limit;
+    });
+
+    _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (!mounted) {
+        timer.cancel();
+        return;
+      }
+      setState(() {
+        if (_secondsRemaining > 0) {
+          _secondsRemaining--;
+        } else {
+          timer.cancel();
+          _handleTimeUp();
+        }
+      });
+    });
+  }
+
+  void _handleTimeUp() {
+    if (!mounted) return;
+
+    // Add -1 to indicate timed out / skipped
+    _userAnswers.add(-1);
+
+    setState(() {
+      if (_currentQuestion < _questions!.length - 1) {
+        _currentQuestion++;
+        _selectedOption = null;
+        _bookmarked = false;
+        _startTimerForQuestion();
+      } else {
+        _saveAndShowResults();
+      }
+    });
+  }
+
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
@@ -46,6 +101,7 @@ class _McqScreenState extends State<McqScreen> {
           _questions = questions;
           _isLoading = false;
         });
+        _startTimerForQuestion(); // Start timer
       }
     } catch (e) {
       if (mounted) {
@@ -60,6 +116,7 @@ class _McqScreenState extends State<McqScreen> {
   void _submitAnswer() {
     if (_selectedOption == null || _questions == null) return;
 
+    _timer?.cancel(); // Cancel timer on manual submission
     _userAnswers.add(_selectedOption!);
 
     if (_selectedOption == _questions![_currentQuestion].correctIndex) {
@@ -71,6 +128,7 @@ class _McqScreenState extends State<McqScreen> {
         _currentQuestion++;
         _selectedOption = null;
         _bookmarked = false;
+        _startTimerForQuestion(); // Restart for next question
       } else {
         _saveAndShowResults();
       }
@@ -154,6 +212,7 @@ class _McqScreenState extends State<McqScreen> {
                     _bookmarked = false;
                     _userAnswers.clear();
                   });
+                  _startTimerForQuestion(); // Restart timer
                 } else {
                   Navigator.pop(screenContext); // Go back to subjects (exit)
                 }
@@ -213,9 +272,41 @@ class _McqScreenState extends State<McqScreen> {
         ),
         centerTitle: true,
         actions: [
-          IconButton(
-            icon: const Icon(Icons.more_vert, color: Colors.white70),
-            onPressed: () {},
+          AnimatedContainer(
+            duration: const Duration(milliseconds: 300),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            margin: const EdgeInsets.only(right: 16, top: 10, bottom: 10),
+            decoration: BoxDecoration(
+              color: _secondsRemaining < 5 
+                  ? const Color(0xFFEF4444).withValues(alpha: 0.1) 
+                  : const Color(0xFF1E293B),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(
+                color: _secondsRemaining < 5 
+                    ? const Color(0xFFEF4444) 
+                    : Colors.white.withValues(alpha: 0.1),
+                width: 1,
+              ),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  Icons.timer_outlined, 
+                  color: _secondsRemaining < 5 ? const Color(0xFFEF4444) : Colors.white70, 
+                  size: 16
+                ),
+                const SizedBox(width: 4),
+                Text(
+                  '${_secondsRemaining}s',
+                  style: TextStyle(
+                    color: _secondsRemaining < 5 ? const Color(0xFFEF4444) : Colors.white,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 14,
+                  ),
+                ),
+              ],
+            ),
           ),
         ],
       ),
@@ -346,7 +437,7 @@ class _McqScreenState extends State<McqScreen> {
                   // Options
                   ...List.generate(question.options.length, (i) {
                     final isSelected = _selectedOption == i;
-                    final label = ['A', 'B', 'C', 'D'][i];
+                    final label = ['A', 'B', 'C', 'D','E'][i];
                     return Padding(
                       padding: const EdgeInsets.only(bottom: 12),
                       child: GestureDetector(

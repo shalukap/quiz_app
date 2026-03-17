@@ -145,6 +145,32 @@ class ReviewAnswersScreen extends StatelessWidget {
               height: 1.4,
             ),
           ),
+          if (userAnswer == -1) ...[
+            const SizedBox(height: 8),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+              decoration: BoxDecoration(
+                color: const Color(0xFFEF4444).withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: const Color(0xFFEF4444), width: 1),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(Icons.timer_off_outlined, color: Color(0xFFEF4444), size: 14),
+                  const SizedBox(width: 4),
+                  Text(
+                    'Timed Out',
+                    style: GoogleFonts.inter(
+                      color: const Color(0xFFEF4444),
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
           if (question.imageUrl != null && question.imageUrl!.isNotEmpty) ...[
             const SizedBox(height: 12),
             ClipRRect(
@@ -162,7 +188,7 @@ class ReviewAnswersScreen extends StatelessWidget {
           ...List.generate(question.options.length, (i) {
             final isCorrect = i == question.correctIndex;
             final isUserSelected = i == userAnswer;
-            final label = ['A', 'B', 'C', 'D'][i];
+            final label = ['A', 'B', 'C', 'D', 'E', 'F'][i];
 
             Color bgColor = const Color(0xFF0F172A);
             Color borderColor = Colors.white.withValues(alpha: 0.05);

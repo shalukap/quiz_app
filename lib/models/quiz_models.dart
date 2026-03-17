@@ -83,6 +83,7 @@ class Question {
   final int correctIndex;
   final String? imageUrl;
   final List<String>? optionImages; // Added
+  final int? timeLimit;
 
   Question({
     required this.id,
@@ -93,6 +94,7 @@ class Question {
     required this.correctIndex,
     this.imageUrl,
     this.optionImages,
+    this.timeLimit,
   });
 
   factory Question.fromMap(String id, Map<String, dynamic> data) {
@@ -107,6 +109,7 @@ class Question {
       optionImages: data['optionImages'] != null 
           ? List<String>.from(data['optionImages']) 
           : null,
+      timeLimit: data['timeLimit'] != null ? (data['timeLimit'] as num).toInt() : null,
     );
   }
 }
