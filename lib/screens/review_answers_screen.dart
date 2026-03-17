@@ -16,7 +16,10 @@ class ReviewAnswersScreen extends StatelessWidget {
       appBar: AppBar(
         elevation: 0,
         backgroundColor: Colors.transparent,
-        leading: const BackButton(color: Colors.white),
+        leading: IconButton(
+          icon: const Icon(Icons.close, color: Colors.white),
+          onPressed: () => Navigator.pop(context, 'exit'),
+        ),
         title: Text(
           'Review Answers',
           style: GoogleFonts.inter(
@@ -49,6 +52,45 @@ class ReviewAnswersScreen extends StatelessWidget {
                 );
               },
             ),
+      bottomNavigationBar: Container(
+        padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+        decoration: BoxDecoration(
+          color: const Color(0xFF1E293B),
+          border: Border(
+            top: BorderSide(color: Colors.white.withValues(alpha: 0.05)),
+          ),
+        ),
+        child: Row(
+          children: [
+            Expanded(
+              child: ElevatedButton(
+                onPressed: () => Navigator.pop(context, 'exit'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF0F172A),
+                  foregroundColor: Colors.white70,
+                  side: BorderSide(color: Colors.white.withValues(alpha: 0.1)),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                ),
+                child: Text('Exit', style: GoogleFonts.inter(fontWeight: FontWeight.w600)),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: ElevatedButton(
+                onPressed: () => Navigator.pop(context, 'restart'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF2563EB),
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                ),
+                child: Text('Try Again', style: GoogleFonts.inter(fontWeight: FontWeight.w600)),
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 

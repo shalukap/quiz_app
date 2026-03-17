@@ -105,10 +105,11 @@ class _McqScreenState extends State<McqScreen> {
   }
 
   void _showResults() {
+    final screenContext = context;
     showDialog(
-      context: context,
+      context: screenContext,
       barrierDismissible: false,
-      builder: (context) => AlertDialog(
+      builder: (dialogContext) => AlertDialog(
         backgroundColor: const Color(0xFF1E293B),
         title: Text(
           'Quiz Completed!',
@@ -134,26 +135,29 @@ class _McqScreenState extends State<McqScreen> {
         ),
         actions: [
           TextButton(
-            onPressed: () {
-              Navigator.pop(context); // Close dialog
-              Navigator.pop(context); // Go back to subjects
-            },
-            child: Text(
-              'Exit',
-              style: GoogleFonts.inter(color: Colors.white70),
-            ),
-          ),
-          TextButton(
-            onPressed: () {
-              Navigator.pop(context); // Close dialog
-              Navigator.pushNamed(
-                context,
+            onPressed: () async {
+              Navigator.pop(dialogContext); // Close dialog using dialogContext
+              final result = await Navigator.pushNamed(
+                screenContext,
                 '/review_answers',
                 arguments: {
                   'questions': _questions!,
                   'userAnswers': _userAnswers,
                 },
               );
+              if (screenContext.mounted) {
+                if (result == 'restart') {
+                  setState(() {
+                    _currentQuestion = 0;
+                    _selectedOption = null;
+                    _score = 0;
+                    _bookmarked = false;
+                    _userAnswers.clear();
+                  });
+                } else {
+                  Navigator.pop(screenContext); // Go back to subjects (exit)
+                }
+              }
             },
             child: Text(
               'Review Answers',
@@ -162,23 +166,6 @@ class _McqScreenState extends State<McqScreen> {
                 fontWeight: FontWeight.w600,
               ),
             ),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              Navigator.pop(context);
-              setState(() {
-                _currentQuestion = 0;
-                _selectedOption = null;
-                _score = 0;
-                _bookmarked = false;
-                _userAnswers.clear();
-              });
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF2563EB),
-              foregroundColor: Colors.white,
-            ),
-            child: const Text('Try Again'),
           ),
         ],
       ),
