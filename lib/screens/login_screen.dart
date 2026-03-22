@@ -479,6 +479,15 @@ class _LoginScreenState extends State<LoginScreen> {
                 ),
               ),
             ),
+            Center(
+              child: Text(
+                'v1.1',
+                style: GoogleFonts.inter(
+                  fontSize: 12,
+                  color: Colors.white24,
+                ),
+              ),
+            ),
             const SizedBox(height: 32),
           ],
         ),

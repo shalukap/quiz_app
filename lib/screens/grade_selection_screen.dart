@@ -103,6 +103,18 @@ class _GradeSelectionScreenState extends State<GradeSelectionScreen> {
               ),
             ),
           ),
+          Padding(
+            padding: const EdgeInsets.only(bottom: 16, top: 8),
+            child: Center(
+              child: Text(
+                'v1.1',
+                style: GoogleFonts.inter(
+                  fontSize: 12,
+                  color: Colors.white24,
+                ),
+              ),
+            ),
+          ),
         ],
       ),
       bottomNavigationBar: BottomNavigationBar(
