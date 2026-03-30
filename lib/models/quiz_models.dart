@@ -54,6 +54,7 @@ class Subject {
   final String iconName;
   final String colorHex;
   final int grade;
+  final String? medium;
 
   Subject({
     required this.id,
@@ -61,6 +62,7 @@ class Subject {
     required this.iconName,
     required this.colorHex,
     required this.grade,
+    this.medium,
   });
 
   factory Subject.fromMap(String id, Map<String, dynamic> data) {
@@ -70,6 +72,7 @@ class Subject {
       iconName: data['iconName'] ?? '',
       colorHex: data['colorHex'] ?? '#2563EB',
       grade: data['grade'] ?? 10,
+      medium: data['medium'] as String?,
     );
   }
 }

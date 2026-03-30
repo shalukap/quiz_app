@@ -39,11 +39,16 @@ class FirestoreService {
   }
 
   // SUBJECTS
-  Future<List<Subject>> getSubjects(int grade) async {
-    final snapshot = await _db.collection('subjects')
-        .where('grade', isEqualTo: grade)
-        .get();
-    return snapshot.docs.map((doc) => Subject.fromMap(doc.id, doc.data())).toList();
+  Future<List<Subject>> getSubjects(int grade, {String? medium}) async {
+    Query query = _db.collection('subjects')
+        .where('grade', isEqualTo: grade);
+    
+    if (medium != null) {
+      query = query.where('medium', isEqualTo: medium);
+    }
+    
+    final snapshot = await query.get();
+    return snapshot.docs.map((doc) => Subject.fromMap(doc.id, doc.data() as Map<String, dynamic>)).toList();
   }
 
 

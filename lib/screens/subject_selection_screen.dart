@@ -11,251 +11,212 @@ class SubjectSelectionScreen extends StatelessWidget {
     final args = ModalRoute.of(context)?.settings.arguments as Map?;
     final grade = args?['grade'] ?? 10;
 
-    return Scaffold(
-      appBar: AppBar(
-        elevation: 0,
-        backgroundColor: Colors.transparent,
-        leading: const BackButton(color: Colors.white),
-        title: Text(
-          'Select Subject',
-          style: GoogleFonts.inter(
-            fontWeight: FontWeight.w600,
-            fontSize: 18,
-            color: Colors.white,
+    return DefaultTabController(
+      length: 3,
+      child: Scaffold(
+        appBar: AppBar(
+          elevation: 0,
+          backgroundColor: Colors.transparent,
+          leading: const BackButton(color: Colors.white),
+          title: Text(
+            'Select Subject',
+            style: GoogleFonts.inter(
+              fontWeight: FontWeight.w600,
+              fontSize: 18,
+              color: Colors.white,
+            ),
           ),
+          centerTitle: true,
         ),
-        centerTitle: true,
-      ),
-      body: Column(
-        children: [
-          // Progress section
-          Padding(
-            padding: const EdgeInsets.fromLTRB(24, 8, 24, 0),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text(
-                      'Step 2 of 5',
-                      style: GoogleFonts.inter(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w500,
-                        color: Colors.white,
+        body: Column(
+          children: [
+            // Progress section
+            Padding(
+              padding: const EdgeInsets.fromLTRB(24, 8, 24, 0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        'Step 2 of 5',
+                        style: GoogleFonts.inter(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w500,
+                          color: Colors.white,
+                        ),
                       ),
-                    ),
-                    Text(
-                      '40% Complete',
-                      style: GoogleFonts.inter(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w700,
-                        color: const Color(0xFF2563EB),
+                      Text(
+                        '40% Complete',
+                        style: GoogleFonts.inter(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w700,
+                          color: const Color(0xFF2563EB),
+                        ),
                       ),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(8),
+                    child: LinearProgressIndicator(
+                      value: 0.4,
+                      minHeight: 7,
+                      backgroundColor: Colors.white12,
+                      valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFF2563EB)),
                     ),
-                  ],
-                ),
-                const SizedBox(height: 10),
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(8),
-                  child: LinearProgressIndicator(
-                    value: 0.4,
-                    minHeight: 7,
-                    backgroundColor: Colors.white12,
-                    valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFF2563EB)),
                   ),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  'Next: Topic Selection',
-                  style: GoogleFonts.inter(
-                    fontSize: 12,
-                    color: Colors.white38,
+                  const SizedBox(height: 8),
+                  Text(
+                    'Next: Topic Selection',
+                    style: GoogleFonts.inter(
+                      fontSize: 12,
+                      color: Colors.white38,
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
-          ),
-          const SizedBox(height: 20),
-          // Heading
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 24),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'What would you like to study?',
-                  style: GoogleFonts.inter(
-                    fontSize: 22,
-                    fontWeight: FontWeight.w800,
-                    color: Colors.white,
-                    height: 1.3,
+            const SizedBox(height: 20),
+            // Heading
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 24),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'What would you like to study?',
+                    style: GoogleFonts.inter(
+                      fontSize: 22,
+                      fontWeight: FontWeight.w800,
+                      color: Colors.white,
+                      height: 1.3,
+                    ),
                   ),
-                ),
-                const SizedBox(height: 6),
-                Text(
-                  'Based on Grade $grade curriculum',
-                  style: GoogleFonts.inter(
-                    fontSize: 13,
-                    color: Colors.white54,
+                  const SizedBox(height: 6),
+                  Text(
+                    'Based on Grade $grade curriculum',
+                    style: GoogleFonts.inter(
+                      fontSize: 13,
+                      color: Colors.white54,
+                    ),
                   ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 16),
+            // Medium Tabs
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: Container(
+                height: 48,
+                padding: const EdgeInsets.all(4),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF1E293B),
+                  borderRadius: BorderRadius.circular(12),
                 ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 16),
-          // Subject list
-          Expanded(
-            child: FutureBuilder<List<Subject>>(
-              future: FirestoreService().getSubjects(grade),
-              builder: (context, snapshot) {
-                if (snapshot.connectionState == ConnectionState.waiting) {
-                  return const Center(child: CircularProgressIndicator());
-                }
-                if (snapshot.hasError) {
-                  return Center(
-                    child: Text('Error loading subjects', style: const TextStyle(color: Colors.white)),
-                  );
-                }
-                
-                final subjects = snapshot.data ?? [];
-                if (subjects.isEmpty) {
-                  return const Center(
-                    child: Text('No subjects found.', style: TextStyle(color: Colors.white)),
-                  );
-                }
-
-                return ListView.separated(
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                  itemCount: subjects.length,
-                  separatorBuilder: (_, __) => const SizedBox(height: 10),
-                  itemBuilder: (context, index) {
-                    final subject = subjects[index];
-                    
-                    // Simple icon mapping fallback
-                    IconData iconData = Icons.book_rounded;
-                    if (subject.iconName == 'functions') iconData = Icons.functions_rounded;
-                    if (subject.iconName == 'science') iconData = Icons.science_rounded;
-                    
-                    return _SubjectCard(
-                      subject: subject,
-                      iconData: iconData,
-                      onTap: () => _showMediumSelection(context, subject, grade),
-                    );
-                  },
-                );
-              },
-            ),
-          ),
-          // View all button
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 12, 16, 20),
-            child: SizedBox(
-              width: double.infinity,
-              height: 52,
-              child: ElevatedButton.icon(
-                onPressed: () {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('All subjects are already shown.')),
-                  );
-                },
-                icon: Text(
-                  'View All Subjects',
-                  style: GoogleFonts.inter(
-                    fontSize: 15,
+                child: TabBar(
+                  indicator: BoxDecoration(
+                    color: const Color(0xFF2563EB),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  dividerColor: Colors.transparent,
+                  labelColor: Colors.white,
+                  unselectedLabelColor: Colors.white54,
+                  labelStyle: GoogleFonts.inter(
                     fontWeight: FontWeight.w600,
+                    fontSize: 13,
                   ),
-                ),
-                label: const Icon(Icons.keyboard_arrow_down_rounded),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF2563EB),
-                  foregroundColor: Colors.white,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(16),
+                  unselectedLabelStyle: GoogleFonts.inter(
+                    fontWeight: FontWeight.w500,
+                    fontSize: 13,
                   ),
-                  elevation: 0,
+                  tabs: const [
+                    Tab(text: 'English'),
+                    Tab(text: 'Sinhala'),
+                    Tab(text: 'Tamil'),
+                  ],
                 ),
               ),
             ),
-          ),
-        ],
+            const SizedBox(height: 16),
+            // Subject list
+            Expanded(
+              child: TabBarView(
+                children: [
+                  _buildSubjectList(context, grade, 'English'),
+                  _buildSubjectList(context, grade, 'Sinhala',),
+                  _buildSubjectList(context, grade, 'Tamil'),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
 
-  void _showMediumSelection(BuildContext context, Subject subject, int grade) {
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: const Color(0xFF0F172A),
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-      ),
-      builder: (context) {
-        return Container(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Select Medium',
-                style: GoogleFonts.inter(
-                  fontSize: 18,
-                  fontWeight: FontWeight.w700,
-                  color: Colors.white,
-                ),
-              ),
-              const SizedBox(height: 16),
-              ...['English', 'Sinhala', 'Tamil'].map((medium) {
-                return Padding(
-                  padding: const EdgeInsets.only(bottom: 12),
-                  child: GestureDetector(
-                    onTap: () {
-                      Navigator.pop(context); // Close sheet
-                      Navigator.pushNamed(
-                        context,
-                        '/quiz',
-                        arguments: {
-                          'grade': grade,
-                          'subjectId': subject.id,
-                          'subjectName': subject.name,
-                          'medium': medium,
-                        },
-                      );
-                    },
-                    child: Container(
-                      padding: const EdgeInsets.all(16),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF1E293B),
-                        borderRadius: BorderRadius.circular(16),
-                        border: Border.all(
-                          color: Colors.white.withValues(alpha: 0.05),
-                        ),
-                      ),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Text(
-                            medium,
-                            style: GoogleFonts.inter(
-                              fontSize: 15,
-                              fontWeight: FontWeight.w600,
-                              color: Colors.white,
-                            ),
-                          ),
-                          const Icon(
-                            Icons.arrow_forward_ios_rounded,
-                            color: Colors.white38,
-                            size: 16,
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
+  Widget _buildSubjectList(BuildContext context, int grade, String medium) {
+    return FutureBuilder<List<Subject>>(
+      future: FirestoreService().getSubjects(grade, medium: medium),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(child: CircularProgressIndicator());
+        }
+        if (snapshot.hasError) {
+          return Center(
+            child: Text('Error loading $medium subjects', 
+              style: const TextStyle(color: Colors.white)),
+          );
+        }
+        
+        final subjects = snapshot.data ?? [];
+        if (subjects.isEmpty) {
+          return Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(Icons.inventory_2_outlined, size: 48, color: Colors.white24),
+                const SizedBox(height: 16),
+                Text('No subjects found for $medium medium.', 
+                  style: TextStyle(color: Colors.white54, fontSize: 15)),
+              ],
+            ),
+          );
+        }
+
+        return ListView.separated(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          itemCount: subjects.length,
+          separatorBuilder: (_, __) => const SizedBox(height: 12),
+          itemBuilder: (context, index) {
+            final subject = subjects[index];
+            
+            // Simple icon mapping fallback
+            IconData iconData = Icons.book_rounded;
+            if (subject.iconName == 'functions') iconData = Icons.functions_rounded;
+            if (subject.iconName == 'science') iconData = Icons.science_rounded;
+            if (subject.iconName == 'history') iconData = Icons.history_edu_rounded;
+            if (subject.iconName == 'language') iconData = Icons.language_rounded;
+            
+            return _SubjectCard(
+              subject: subject,
+              iconData: iconData,
+              onTap: () {
+                Navigator.pushNamed(
+                  context,
+                  '/quiz',
+                  arguments: {
+                    'grade': grade,
+                    'subjectId': subject.id,
+                    'subjectName': subject.name,
+                    'medium': medium,
+                  },
                 );
-              }),
-            ],
-          ),
+              },
+            );
+          },
         );
       },
     );
