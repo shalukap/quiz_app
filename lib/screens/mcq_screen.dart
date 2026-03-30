@@ -93,9 +93,10 @@ class _McqScreenState extends State<McqScreen> {
       final subjectId = args?['subjectId'] as String? ?? '';
       final grade = args?['grade'] as int? ?? 10;
       final medium = args?['medium'] as String?; // Added
+      final bucketId = args?['bucketId'] as String?; // Added
       
       final db = FirestoreService();
-      final questions = await db.getQuestions(subjectId, grade, medium: medium);
+      final questions = await db.getQuestions(subjectId, grade, medium: medium, bucketId: bucketId);
       
       if (mounted) {
         setState(() {
@@ -371,6 +372,104 @@ class _McqScreenState extends State<McqScreen> {
                     ),
                   ),
                   const SizedBox(height: 12),
+                  // Scenario (if any)
+                  if ((question.scenarioText != null && question.scenarioText!.isNotEmpty) ||
+                      (question.scenarioImageUrl != null && question.scenarioImageUrl!.isNotEmpty)) ...[
+                    Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF1E293B),
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(
+                          color: const Color(0xFF2563EB).withValues(alpha: 0.3),
+                          width: 1,
+                        ),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              const Icon(Icons.info_outline, color: Color(0xFF2563EB), size: 16),
+                              const SizedBox(width: 8),
+                              Text(
+                                'SCENARIO',
+                                style: GoogleFonts.inter(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w700,
+                                  color: const Color(0xFF2563EB),
+                                  letterSpacing: 1,
+                                ),
+                              ),
+                            ],
+                          ),
+                          if (question.scenarioText != null && question.scenarioText!.isNotEmpty) ...[
+                            const SizedBox(height: 12),
+                            Text(
+                              question.scenarioText!,
+                              style: GoogleFonts.inter(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w500,
+                                color: Colors.white,
+                                height: 1.5,
+                              ),
+                            ),
+                          ],
+                          if (question.scenarioImageUrl != null && question.scenarioImageUrl!.isNotEmpty) ...[
+                            const SizedBox(height: 12),
+                            GestureDetector(
+                              onTap: () {
+                                showDialog(
+                                  context: context,
+                                  builder: (context) => Dialog(
+                                    backgroundColor: Colors.transparent,
+                                    insetPadding: const EdgeInsets.all(12),
+                                    child: Stack(
+                                      alignment: Alignment.center,
+                                      children: [
+                                        InteractiveViewer(
+                                          clipBehavior: Clip.none,
+                                          maxScale: 3.0,
+                                          child: Image.network(
+                                            question.scenarioImageUrl!,
+                                            fit: BoxFit.contain,
+                                          ),
+                                        ),
+                                        Positioned(
+                                          top: 10,
+                                          right: 10,
+                                          child: IconButton(
+                                            icon: const Icon(Icons.close, color: Colors.white, size: 28),
+                                            onPressed: () => Navigator.pop(context),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                );
+                              },
+                              child: ClipRRect(
+                                borderRadius: BorderRadius.circular(12),
+                                child: Image.network(
+                                  question.scenarioImageUrl!,
+                                  fit: BoxFit.contain,
+                                  loadingBuilder: (context, child, loadingProgress) {
+                                    if (loadingProgress == null) return child;
+                                    return const Padding(
+                                      padding: EdgeInsets.all(20.0),
+                                      child: Center(child: CircularProgressIndicator(color: Color(0xFF2563EB), strokeWidth: 2)),
+                                    );
+                                  },
+                                  errorBuilder: (context, error, stackTrace) => const SizedBox(),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 24),
+                  ],
                   Text(
                     question.text,
                     style: GoogleFonts.inter(

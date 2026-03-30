@@ -53,19 +53,59 @@ class FirestoreService {
 
 
   // QUESTIONS
-  Future<List<Question>> getQuestions(String subjectId, int grade, {String? medium}) async {
-    final snapshot = await _db.collection('questions')
+  Future<List<Question>> getQuestions(String subjectId, int grade, {String? medium, String? bucketId}) async {
+    Query query = _db.collection('questions')
         .where('subjectId', isEqualTo: subjectId)
-        .where('grade', isEqualTo: grade)
-        .get();
+        .where('grade', isEqualTo: grade);
     
-    final questions = snapshot.docs.map((doc) => Question.fromMap(doc.id, doc.data())).toList();
+    if (bucketId != null) {
+      query = query.where('bucketId', isEqualTo: bucketId);
+    }
+    
+    final snapshot = await query.get();
+    final questions = snapshot.docs.map((doc) => Question.fromMap(doc.id, doc.data() as Map<String, dynamic>)).toList();
     
     if (medium != null) {
       return questions.where((q) => q.medium == medium).toList();
     }
     
     return questions;
+  }
+
+  // BUCKETS
+  Future<List<Bucket>> getBuckets(String subjectId, int grade, {String? medium}) async {
+    // 1. Fetch questions to group by bucket
+    Query query = _db.collection('questions')
+        .where('subjectId', isEqualTo: subjectId)
+        .where('grade', isEqualTo: grade);
+    
+    final snapshot = await query.get();
+    final questions = snapshot.docs.map((doc) => Question.fromMap(doc.id, doc.data() as Map<String, dynamic>)).toList();
+
+    // 2. Filter by medium
+    final filtered = (medium != null)
+        ? questions.where((q) => q.medium == medium).toList()
+        : questions;
+
+    // 3. Group by bucketId
+    final Map<String, Bucket> bucketMap = {};
+    for (var q in filtered) {
+      final bid = q.bucketId ?? 'default';
+      final bname = q.bucketName ?? 'Untitled Set';
+      
+      if (!bucketMap.containsKey(bid)) {
+        bucketMap[bid] = Bucket(id: bid, name: bname, questionCount: 1);
+      } else {
+        final existing = bucketMap[bid]!;
+        bucketMap[bid] = Bucket(
+          id: bid,
+          name: bname,
+          questionCount: existing.questionCount + 1,
+        );
+      }
+    }
+    
+    return bucketMap.values.toList();
   }
 
   // RESULTS

@@ -77,6 +77,18 @@ class Subject {
   }
 }
 
+class Bucket {
+  final String id;
+  final String name;
+  final int questionCount;
+
+  Bucket({
+    required this.id,
+    required this.name,
+    required this.questionCount,
+  });
+}
+
 class Question {
   final String id;
   final String subjectId;
@@ -88,6 +100,10 @@ class Question {
   final List<String>? optionImages; // Added
   final int? timeLimit;
   final String? medium; // Added
+  final String? scenarioText; // NEW
+  final String? scenarioImageUrl; // NEW
+  final String? bucketId; // NEW
+  final String? bucketName; // NEW
 
   Question({
     required this.id,
@@ -100,6 +116,10 @@ class Question {
     this.optionImages,
     this.timeLimit,
     this.medium,
+    this.scenarioText,
+    this.scenarioImageUrl,
+    this.bucketId,
+    this.bucketName,
   });
 
   factory Question.fromMap(String id, Map<String, dynamic> data) {
@@ -116,6 +136,10 @@ class Question {
           : null,
       timeLimit: data['timeLimit'] != null ? (data['timeLimit'] as num).toInt() : null,
       medium: data['medium'] as String?,
+      scenarioText: data['scenarioText'] as String?,
+      scenarioImageUrl: data['scenarioImageUrl'] as String?,
+      bucketId: data['bucketId'] as String?,
+      bucketName: data['bucketName'] as String?,
     );
   }
 }

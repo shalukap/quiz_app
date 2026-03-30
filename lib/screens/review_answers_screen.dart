@@ -136,6 +136,58 @@ class ReviewAnswersScreen extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 12),
+          // Scenario (if any)
+          if ((question.scenarioText != null && question.scenarioText!.isNotEmpty) ||
+              (question.scenarioImageUrl != null && question.scenarioImageUrl!.isNotEmpty)) ...[
+            Container(
+              padding: const EdgeInsets.all(12),
+              margin: const EdgeInsets.only(bottom: 12),
+              decoration: BoxDecoration(
+                color: const Color(0xFF0F172A),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: const Color(0xFF2563EB).withValues(alpha: 0.2),
+                  width: 1,
+                ),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'SCENARIO',
+                    style: GoogleFonts.inter(
+                      fontSize: 10,
+                      fontWeight: FontWeight.w700,
+                      color: const Color(0xFF2563EB),
+                      letterSpacing: 1,
+                    ),
+                  ),
+                  if (question.scenarioText != null && question.scenarioText!.isNotEmpty) ...[
+                    const SizedBox(height: 8),
+                    Text(
+                      question.scenarioText!,
+                      style: GoogleFonts.inter(
+                        fontSize: 14,
+                        color: Colors.white70,
+                        height: 1.5,
+                      ),
+                    ),
+                  ],
+                  if (question.scenarioImageUrl != null && question.scenarioImageUrl!.isNotEmpty) ...[
+                    const SizedBox(height: 8),
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(8),
+                      child: Image.network(
+                        question.scenarioImageUrl!,
+                        fit: BoxFit.contain,
+                        errorBuilder: (context, error, stackTrace) => const SizedBox(),
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ],
           Text(
             question.text,
             style: GoogleFonts.inter(

@@ -13,6 +13,7 @@ import 'screens/mcq_screen.dart';
 import 'screens/leaderboard_screen.dart';
 import 'screens/profile_screen.dart';
 import 'screens/review_answers_screen.dart';
+import 'screens/bucket_selection_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -57,6 +58,7 @@ class QuizApp extends StatelessWidget {
         '/register': (context) => const RegisterScreen(),
         '/grade': (context) => const GradeSelectionScreen(),
         '/subjects': (context) => const SubjectSelectionScreen(),
+        '/buckets': (context) => const BucketSelectionScreen(),
         '/quiz': (context) => const McqScreen(),
         '/leaderboard': (context) => const LeaderboardScreen(),
         '/profile': (context) => const ProfileScreen(),

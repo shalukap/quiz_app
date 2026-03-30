@@ -206,7 +206,7 @@ class SubjectSelectionScreen extends StatelessWidget {
               onTap: () {
                 Navigator.pushNamed(
                   context,
-                  '/quiz',
+                  '/buckets',
                   arguments: {
                     'grade': grade,
                     'subjectId': subject.id,

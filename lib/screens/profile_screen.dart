@@ -150,6 +150,16 @@ class ProfileScreen extends StatelessWidget {
                 ),
               ),
             ),
+            const SizedBox(height: 32),
+            Text(
+              'v1.2',
+              style: GoogleFonts.inter(
+                color: Colors.white24,
+                fontSize: 12,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+            const SizedBox(height: 24),
               ],
             ),
           );
