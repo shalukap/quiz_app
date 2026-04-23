@@ -23,7 +23,7 @@ class FirestoreService {
     return null;
   }
 
-  Future<void> createUserProfile(String username, {String? email, String? uid, String? password}) async {
+  Future<void> createUserProfile(String username, {String? email, String? uid, String? password, String? photoUrl}) async {
     final profile = UserProfile(
       username: username,
       points: 0,
@@ -33,6 +33,7 @@ class FirestoreService {
       password: password,
       email: email,
       uid: uid,
+      photoUrl: photoUrl,
     );
     final docId = uid ?? username;
     await _db.collection('users').doc(docId).set(profile.toMap());
@@ -58,15 +59,54 @@ class FirestoreService {
         .where('subjectId', isEqualTo: subjectId)
         .where('grade', isEqualTo: grade);
     
-    if (bucketId != null) {
-      query = query.where('bucketId', isEqualTo: bucketId);
+    // If it's a numeric bucketNumber (passed as bucketId string)
+    int? bucketNumber = int.tryParse(bucketId ?? '');
+    
+    // If it's a virtual set (e.g. "set_1", "set_2")
+    bool isVirtualSet = bucketId != null && bucketId.startsWith('set_');
+    
+    if (bucketNumber != null && !isVirtualSet) {
+      query = query.where('bucketNumber', isEqualTo: bucketNumber);
     }
     
     final snapshot = await query.get();
-    final questions = snapshot.docs.map((doc) => Question.fromMap(doc.id, doc.data() as Map<String, dynamic>)).toList();
+    var questions = snapshot.docs.map((doc) => Question.fromMap(doc.id, doc.data() as Map<String, dynamic>)).toList();
     
     if (medium != null) {
-      return questions.where((q) => q.medium == medium).toList();
+      questions = questions.where((q) => q.medium == medium).toList();
+    }
+
+    // Group by scenario to ensure sequential display
+    if (questions.any((q) => (q.scenarioText != null && q.scenarioText!.isNotEmpty) || 
+                             (q.scenarioImageUrl != null && q.scenarioImageUrl!.isNotEmpty))) {
+      final List<Question> groupedQuestions = [];
+      final Set<String> processedScenarios = {};
+
+      for (var q in questions) {
+        final scenarioKey = (q.scenarioText ?? '') + (q.scenarioImageUrl ?? '');
+        if (scenarioKey.isEmpty) {
+          groupedQuestions.add(q);
+        } else if (!processedScenarios.contains(scenarioKey)) {
+          // Find all questions with this exact scenario and add them together
+          final scenarioGroup = questions.where((other) {
+            final otherKey = (other.scenarioText ?? '') + (other.scenarioImageUrl ?? '');
+            return otherKey == scenarioKey;
+          }).toList();
+          
+          groupedQuestions.addAll(scenarioGroup);
+          processedScenarios.add(scenarioKey);
+        }
+      }
+      questions = groupedQuestions;
+    }
+
+    if (isVirtualSet) {
+      final setIndex = int.tryParse(bucketId.replaceFirst('set_', '')) ?? 1;
+      final start = (setIndex - 1) * 20;
+      final end = start + 20;
+      
+      if (start >= questions.length) return [];
+      return questions.sublist(start, end.clamp(0, questions.length));
     }
     
     return questions;
@@ -80,32 +120,63 @@ class FirestoreService {
         .where('grade', isEqualTo: grade);
     
     final snapshot = await query.get();
-    final questions = snapshot.docs.map((doc) => Question.fromMap(doc.id, doc.data() as Map<String, dynamic>)).toList();
+    final allQuestions = snapshot.docs.map((doc) => Question.fromMap(doc.id, doc.data() as Map<String, dynamic>)).toList();
 
     // 2. Filter by medium
     final filtered = (medium != null)
-        ? questions.where((q) => q.medium == medium).toList()
-        : questions;
+        ? allQuestions.where((q) => q.medium == medium).toList()
+        : allQuestions;
 
-    // 3. Group by bucketId
-    final Map<String, Bucket> bucketMap = {};
+    if (filtered.isEmpty) return [];
+
+    // 3. Group by bucketNumber
+    final Map<int, Bucket> bucketMap = {};
+    final List<Question> unbucketedQuestions = [];
+
     for (var q in filtered) {
-      final bid = q.bucketId ?? 'default';
-      final bname = q.bucketName ?? 'Untitled Set';
-      
-      if (!bucketMap.containsKey(bid)) {
-        bucketMap[bid] = Bucket(id: bid, name: bname, questionCount: 1);
+      if (q.bucketNumber != null) {
+        final bNum = q.bucketNumber!;
+        if (!bucketMap.containsKey(bNum)) {
+          bucketMap[bNum] = Bucket(
+            id: bNum.toString(), 
+            name: q.bucketName ?? 'Set $bNum', 
+            questionCount: 1
+          );
+        } else {
+          final existing = bucketMap[bNum]!;
+          bucketMap[bNum] = Bucket(
+            id: existing.id,
+            name: existing.name,
+            questionCount: existing.questionCount + 1,
+          );
+        }
       } else {
-        final existing = bucketMap[bid]!;
-        bucketMap[bid] = Bucket(
-          id: bid,
-          name: bname,
-          questionCount: existing.questionCount + 1,
-        );
+        unbucketedQuestions.add(q);
       }
     }
     
-    return bucketMap.values.toList();
+    final List<Bucket> finalBuckets = bucketMap.values.toList();
+    finalBuckets.sort((a, b) => int.parse(a.id).compareTo(int.parse(b.id)));
+
+    // 4. Handle unbucketed questions by splitting into virtual sets of 20
+    if (unbucketedQuestions.isNotEmpty) {
+      final int setSize = 20;
+      final int numSets = (unbucketedQuestions.length / setSize).ceil();
+      
+      for (int i = 0; i < numSets; i++) {
+        final start = i * setSize;
+        final end = (start + setSize).clamp(0, unbucketedQuestions.length);
+        final count = end - start;
+        
+        finalBuckets.add(Bucket(
+          id: 'set_${i + 1}',
+          name: 'Question Set ${i + 1}',
+          questionCount: count,
+        ));
+      }
+    }
+    
+    return finalBuckets;
   }
 
   // RESULTS
@@ -113,6 +184,7 @@ class FirestoreService {
     required String username,
     required String subjectId,
     required String subjectName,
+    required int grade,
     required int score,
     required int totalQuestions,
     required List<int> userAnswers,
@@ -124,6 +196,7 @@ class FirestoreService {
       userId: username,
       subjectId: subjectId,
       subjectName: subjectName,
+      grade: grade,
       score: score,
       totalQuestions: totalQuestions,
       date: DateTime.now(),
@@ -133,6 +206,7 @@ class FirestoreService {
       'userId': result.userId,
       'subjectId': result.subjectId,
       'subjectName': result.subjectName,
+      'grade': result.grade,
       'score': result.score,
       'totalQuestions': result.totalQuestions,
       'date': Timestamp.fromDate(result.date),
@@ -159,7 +233,7 @@ class FirestoreService {
   }
 
   // RECENT RESULTS for Profile Screen
-  Future<List<QuizResult>> getRecentResults(String username) async {
+  Future<List<QuizResult>> getRecentResults(String username, {int? limit}) async {
     final snapshot = await _db.collection('results')
         .where('userId', isEqualTo: username)
         .get();
@@ -167,6 +241,15 @@ class FirestoreService {
     final results = snapshot.docs.map((doc) => QuizResult.fromMap(doc.id, doc.data())).toList();
     // Sort locally to avoid requiring composite indexes in Firestore
     results.sort((a, b) => b.date.compareTo(a.date));
-    return results.take(10).toList();
+    if (limit != null) {
+      return results.take(limit).toList();
+    }
+    return results;
+  }
+
+  Future<void> updateUserProfilePhoto(String docId, String photoUrl) async {
+    await _db.collection('users').doc(docId).update({
+      'photoUrl': photoUrl,
+    });
   }
 }

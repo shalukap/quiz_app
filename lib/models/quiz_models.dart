@@ -9,6 +9,7 @@ class UserProfile {
   final String? password; // Kept for demonstration or fallback
   final String? email;    // Added for Firebase Auth
   final String? uid;      // Added for Firebase Auth
+  final String? photoUrl; // Added for Profile Picture
 
   UserProfile({
     required this.username,
@@ -19,6 +20,7 @@ class UserProfile {
     this.password,
     this.email,
     this.uid,
+    this.photoUrl,
   });
 
   factory UserProfile.fromMap(Map<String, dynamic> data) {
@@ -31,6 +33,7 @@ class UserProfile {
       password: data['password'],
       email: data['email'],
       uid: data['uid'],
+      photoUrl: data['photoUrl'],
     );
   }
 
@@ -44,6 +47,7 @@ class UserProfile {
       if (password != null) 'password': password,
       if (email != null) 'email': email,
       if (uid != null) 'uid': uid,
+      if (photoUrl != null) 'photoUrl': photoUrl,
     };
   }
 }
@@ -104,6 +108,7 @@ class Question {
   final String? scenarioImageUrl; // NEW
   final String? bucketId; // NEW
   final String? bucketName; // NEW
+  final int? bucketNumber; // NEW
 
   Question({
     required this.id,
@@ -120,6 +125,7 @@ class Question {
     this.scenarioImageUrl,
     this.bucketId,
     this.bucketName,
+    this.bucketNumber,
   });
 
   factory Question.fromMap(String id, Map<String, dynamic> data) {
@@ -140,6 +146,7 @@ class Question {
       scenarioImageUrl: data['scenarioImageUrl'] as String?,
       bucketId: data['bucketId'] as String?,
       bucketName: data['bucketName'] as String?,
+      bucketNumber: data['bucketNumber'] != null ? (data['bucketNumber'] as num).toInt() : null,
     );
   }
 }
@@ -149,6 +156,7 @@ class QuizResult {
   final String userId;
   final String subjectId;
   final String subjectName;
+  final int grade; // Added
   final int score;
   final int totalQuestions;
   final DateTime date;
@@ -159,6 +167,7 @@ class QuizResult {
     required this.userId,
     required this.subjectId,
     required this.subjectName,
+    required this.grade,
     required this.score,
     required this.totalQuestions,
     required this.date,
@@ -171,6 +180,7 @@ class QuizResult {
       userId: data['userId'] ?? '',
       subjectId: data['subjectId'] ?? '',
       subjectName: data['subjectName'] ?? '',
+      grade: data['grade'] ?? 10,
       score: data['score'] ?? 0,
       totalQuestions: data['totalQuestions'] ?? 0,
       date: (data['date'] as Timestamp?)?.toDate() ?? DateTime.now(),
