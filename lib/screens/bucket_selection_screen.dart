@@ -13,7 +13,8 @@ class BucketSelectionScreen extends StatelessWidget {
     final grade = args?['grade'] ?? 10;
     final subjectId = args?['subjectId'] ?? '';
     final subjectName = args?['subjectName'] ?? 'Subject';
-    final medium = args?['medium'];
+    final medium = args?['medium'] as String?;
+    final displayTag = subjectId.isNotEmpty ? subjectName : '${medium ?? "All"} Medium';
 
     return Scaffold(
       extendBodyBehindAppBar: true,
@@ -42,7 +43,7 @@ class BucketSelectionScreen extends StatelessWidget {
                 const SizedBox(height: 16),
                 _buildProgressSection(),
                 const SizedBox(height: 32),
-                _buildHeader(subjectName),
+                _buildHeader(displayTag),
                 const SizedBox(height: 24),
                 Expanded(
                   child: FutureBuilder<List<Bucket>>(
@@ -107,7 +108,7 @@ class BucketSelectionScreen extends StatelessWidget {
                                 arguments: {
                                   'grade': grade,
                                   'subjectId': subjectId,
-                                  'subjectName': subjectName,
+                                  'subjectName': displayTag,
                                   'medium': medium,
                                   'bucketId': bucket.id,
                                   'bucketName': bucket.name,

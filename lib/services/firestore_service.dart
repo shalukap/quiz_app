@@ -54,10 +54,13 @@ class FirestoreService {
 
 
   // QUESTIONS
-  Future<List<Question>> getQuestions(String subjectId, int grade, {String? medium, String? bucketId}) async {
+  Future<List<Question>> getQuestions(String? subjectId, int grade, {String? medium, String? bucketId}) async {
     Query query = _db.collection('questions')
-        .where('subjectId', isEqualTo: subjectId)
         .where('grade', isEqualTo: grade);
+    
+    if (subjectId != null && subjectId.isNotEmpty) {
+      query = query.where('subjectId', isEqualTo: subjectId);
+    }
     
     // If it's a numeric bucketNumber (passed as bucketId string)
     int? bucketNumber = int.tryParse(bucketId ?? '');
@@ -113,11 +116,14 @@ class FirestoreService {
   }
 
   // BUCKETS
-  Future<List<Bucket>> getBuckets(String subjectId, int grade, {String? medium}) async {
+  Future<List<Bucket>> getBuckets(String? subjectId, int grade, {String? medium}) async {
     // 1. Fetch questions to group by bucket
     Query query = _db.collection('questions')
-        .where('subjectId', isEqualTo: subjectId)
         .where('grade', isEqualTo: grade);
+        
+    if (subjectId != null && subjectId.isNotEmpty) {
+      query = query.where('subjectId', isEqualTo: subjectId);
+    }
     
     final snapshot = await query.get();
     final allQuestions = snapshot.docs.map((doc) => Question.fromMap(doc.id, doc.data() as Map<String, dynamic>)).toList();
@@ -129,51 +135,21 @@ class FirestoreService {
 
     if (filtered.isEmpty) return [];
 
-    // 3. Group by bucketNumber
-    final Map<int, Bucket> bucketMap = {};
-    final List<Question> unbucketedQuestions = [];
-
-    for (var q in filtered) {
-      if (q.bucketNumber != null) {
-        final bNum = q.bucketNumber!;
-        if (!bucketMap.containsKey(bNum)) {
-          bucketMap[bNum] = Bucket(
-            id: bNum.toString(), 
-            name: q.bucketName ?? 'Set $bNum', 
-            questionCount: 1
-          );
-        } else {
-          final existing = bucketMap[bNum]!;
-          bucketMap[bNum] = Bucket(
-            id: existing.id,
-            name: existing.name,
-            questionCount: existing.questionCount + 1,
-          );
-        }
-      } else {
-        unbucketedQuestions.add(q);
-      }
-    }
+    // 3. Divide all questions into virtual sets of 20
+    final List<Bucket> finalBuckets = [];
+    final int setSize = 20;
+    final int numSets = (filtered.length / setSize).ceil();
     
-    final List<Bucket> finalBuckets = bucketMap.values.toList();
-    finalBuckets.sort((a, b) => int.parse(a.id).compareTo(int.parse(b.id)));
-
-    // 4. Handle unbucketed questions by splitting into virtual sets of 20
-    if (unbucketedQuestions.isNotEmpty) {
-      final int setSize = 20;
-      final int numSets = (unbucketedQuestions.length / setSize).ceil();
+    for (int i = 0; i < numSets; i++) {
+      final start = i * setSize;
+      final end = (start + setSize).clamp(0, filtered.length);
+      final count = end - start;
       
-      for (int i = 0; i < numSets; i++) {
-        final start = i * setSize;
-        final end = (start + setSize).clamp(0, unbucketedQuestions.length);
-        final count = end - start;
-        
-        finalBuckets.add(Bucket(
-          id: 'set_${i + 1}',
-          name: 'Question Set ${i + 1}',
-          questionCount: count,
-        ));
-      }
+      finalBuckets.add(Bucket(
+        id: 'set_${i + 1}',
+        name: 'Question Set ${i + 1}',
+        questionCount: count,
+      ));
     }
     
     return finalBuckets;

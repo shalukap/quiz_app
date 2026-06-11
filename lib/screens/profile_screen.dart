@@ -461,7 +461,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         ),
         const SizedBox(height: 4),
         Text(
-          'Version 1.2.0',
+          'Version 1.2.1',
           style: GoogleFonts.inter(
             color: Colors.white.withValues(alpha: 0.05),
             fontSize: 11,

@@ -5,6 +5,7 @@ import 'package:google_fonts/google_fonts.dart';
 import '../services/firestore_service.dart';
 import '../models/quiz_models.dart';
 import '../state/app_state.dart';
+import '../widgets/formatted_text.dart';
 
 class McqScreen extends StatefulWidget {
   const McqScreen({super.key});
@@ -538,7 +539,7 @@ class _McqScreenState extends State<McqScreen> {
                 if (question.scenarioText != null &&
                     question.scenarioText!.isNotEmpty) ...[
                   const SizedBox(height: 12),
-                  Text(
+                  FormattedText(
                     question.scenarioText!,
                     style: GoogleFonts.inter(
                       fontSize: 16,
@@ -562,7 +563,7 @@ class _McqScreenState extends State<McqScreen> {
   }
 
   Widget _buildQuestionText(Question question) {
-    return Text(
+    return FormattedText(
       question.text,
       style: GoogleFonts.inter(
         fontSize: 22,
@@ -707,7 +708,7 @@ class _McqScreenState extends State<McqScreen> {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text(
+                            FormattedText(
                               question.options[i],
                               style: GoogleFonts.inter(
                                 fontSize: 16,

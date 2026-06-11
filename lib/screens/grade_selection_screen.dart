@@ -17,10 +17,27 @@ class _GradeSelectionScreenState extends State<GradeSelectionScreen> {
   int _selectedNav = 0;
 
   void _onGradeTap(int grade) {
-    Navigator.pushNamed(
-      context,
-      '/subjects',
-      arguments: {'grade': grade},
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      barrierColor: Colors.black.withValues(alpha: 0.5),
+      isScrollControlled: true,
+      builder: (context) {
+        return _MediumSelectionSheet(
+          grade: grade,
+          onMediumSelected: (medium) {
+            Navigator.pop(context);
+            Navigator.pushNamed(
+              context,
+              '/buckets',
+              arguments: {
+                'grade': grade,
+                'medium': medium,
+              },
+            );
+          },
+        );
+      },
     );
   }
 
@@ -258,6 +275,229 @@ class _GradeTile extends StatelessWidget {
                     fontWeight: FontWeight.w700,
                     color: const Color(0xFF60A5FA),
                     letterSpacing: 1,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _MediumSelectionSheet extends StatelessWidget {
+  final int grade;
+  final ValueChanged<String> onMediumSelected;
+
+  const _MediumSelectionSheet({
+    required this.grade,
+    required this.onMediumSelected,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return BackdropFilter(
+      filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
+      child: Container(
+        decoration: BoxDecoration(
+          color: const Color(0xFF0F172A).withValues(alpha: 0.9),
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(32)),
+          border: Border.all(
+            color: Colors.white.withValues(alpha: 0.08),
+            width: 1.5,
+          ),
+        ),
+        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
+        child: SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: Colors.white24,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              const SizedBox(height: 24),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Select Medium',
+                          style: GoogleFonts.inter(
+                            fontSize: 22,
+                            fontWeight: FontWeight.w900,
+                            color: Colors.white,
+                            letterSpacing: -0.5,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          'Choose instruction language for curriculum',
+                          style: GoogleFonts.inter(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w500,
+                            color: Colors.white54,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF3B82F6).withValues(alpha: 0.15),
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(
+                        color: const Color(0xFF3B82F6).withValues(alpha: 0.25),
+                      ),
+                    ),
+                    child: Text(
+                      'GRADE $grade',
+                      style: GoogleFonts.inter(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w800,
+                        color: const Color(0xFF60A5FA),
+                        letterSpacing: 0.5,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 24),
+              _MediumOptionTile(
+                title: 'English Medium',
+                subtitle: 'English language subjects & quizzes',
+                icon: Icons.language_rounded,
+                gradientColors: const [Color(0xFF2563EB), Color(0xFF3B82F6)],
+                onTap: () => onMediumSelected('English'),
+              ),
+              const SizedBox(height: 16),
+              _MediumOptionTile(
+                title: 'Sinhala Medium',
+                subtitle: 'සිංහල මාධ්‍යය ප්‍රශ්න පත්‍ර සහ පාඩම්',
+                icon: Icons.translate_rounded,
+                gradientColors: const [Color(0xFF8B5CF6), Color(0xFFA78BFA)],
+                onTap: () => onMediumSelected('Sinhala'),
+              ),
+              const SizedBox(height: 16),
+              _MediumOptionTile(
+                title: 'Tamil Medium',
+                subtitle: 'தமிழ் மொழி வினாக்கள் மற்றும் பாடங்கள்',
+                icon: Icons.g_translate_rounded,
+                gradientColors: const [Color(0xFFEC4899), Color(0xFFF472B6)],
+                onTap: () => onMediumSelected('Tamil'),
+              ),
+              const SizedBox(height: 8),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _MediumOptionTile extends StatelessWidget {
+  final String title;
+  final String subtitle;
+  final IconData icon;
+  final List<Color> gradientColors;
+  final VoidCallback onTap;
+
+  const _MediumOptionTile({
+    required this.title,
+    required this.subtitle,
+    required this.icon,
+    required this.gradientColors,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(20),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onTap,
+          child: Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.03),
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(
+                color: Colors.white.withValues(alpha: 0.06),
+                width: 1.2,
+              ),
+            ),
+            child: Row(
+              children: [
+                Container(
+                  width: 48,
+                  height: 48,
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: gradientColors,
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
+                    borderRadius: BorderRadius.circular(14),
+                    boxShadow: [
+                      BoxShadow(
+                        color: gradientColors[0].withValues(alpha: 0.25),
+                        blurRadius: 10,
+                        offset: const Offset(0, 4),
+                      ),
+                    ],
+                  ),
+                  child: Icon(
+                    icon,
+                    color: Colors.white,
+                    size: 22,
+                  ),
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        title,
+                        style: GoogleFonts.inter(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w700,
+                          color: Colors.white,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        subtitle,
+                        style: GoogleFonts.inter(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w500,
+                          color: Colors.white38,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Container(
+                  padding: const EdgeInsets.all(6),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.03),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(
+                    Icons.chevron_right_rounded,
+                    color: Colors.white24,
+                    size: 20,
                   ),
                 ),
               ],

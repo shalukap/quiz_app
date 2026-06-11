@@ -2,6 +2,7 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../models/quiz_models.dart';
+import '../widgets/formatted_text.dart';
 
 class ReviewAnswersScreen extends StatelessWidget {
   const ReviewAnswersScreen({super.key});
@@ -258,7 +259,7 @@ class ReviewAnswersScreen extends StatelessWidget {
                       if (question.scenarioText != null &&
                           question.scenarioText!.isNotEmpty) ...[
                         const SizedBox(height: 12),
-                        Text(
+                        FormattedText(
                           question.scenarioText!,
                           style: GoogleFonts.inter(
                             fontSize: 14,
@@ -285,7 +286,7 @@ class ReviewAnswersScreen extends StatelessWidget {
                   ),
                 ),
               ],
-              Text(
+              FormattedText(
                 question.text,
                 style: GoogleFonts.inter(
                   fontSize: 17,
@@ -405,7 +406,7 @@ class ReviewAnswersScreen extends StatelessWidget {
                             ),
                             const SizedBox(width: 12),
                             Expanded(
-                              child: Text(
+                              child: FormattedText(
                                 question.options[i],
                                 style: GoogleFonts.inter(
                                   color: (isCorrect || isUserSelected)

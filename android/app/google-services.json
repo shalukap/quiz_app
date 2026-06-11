@@ -7,12 +7,25 @@
   "client": [
     {
       "client_info": {
-        "mobilesdk_app_id": "1:1038214637528:android:a2b4a28338a8dd027374ad",
+        "mobilesdk_app_id": "1:1038214637528:android:6bb03746b0152bbf7374ad",
         "android_client_info": {
-          "package_name": "com.example.quiz_app"
+          "package_name": "com.judeshaluka.quiz_master"
         }
       },
-      "oauth_client": [],
+      "oauth_client": [
+        {
+          "client_id": "1038214637528-8ipai986vurducgec5g7p2elur14se51.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.judeshaluka.quiz_master",
+            "certificate_hash": "64ee0280733312871f0a5991a427147ae759f379"
+          }
+        },
+        {
+          "client_id": "1038214637528-v8fv4f44mhpu7j04l0ve8ooao5u2aajt.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
       "api_key": [
         {
           "current_key": "AIzaSyDHz2M-e0nbR9YQxFCqIPotF_2s-mUI7a0"
@@ -20,7 +33,19 @@
       ],
       "services": {
         "appinvite_service": {
-          "other_platform_oauth_client": []
+          "other_platform_oauth_client": [
+            {
+              "client_id": "1038214637528-v8fv4f44mhpu7j04l0ve8ooao5u2aajt.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "1038214637528-plhjelb1suuldvl40vvr69fpqdn6cj38.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.example.quizApp"
+              }
+            }
+          ]
         }
       }
     }

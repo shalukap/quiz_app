@@ -11,9 +11,18 @@ class SubjectSelectionScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final args = ModalRoute.of(context)?.settings.arguments as Map?;
     final grade = args?['grade'] ?? 10;
+    final medium = args?['medium'] as String? ?? 'English';
+
+    int initialTabIndex = 0;
+    if (medium == 'Sinhala') {
+      initialTabIndex = 1;
+    } else if (medium == 'Tamil') {
+      initialTabIndex = 2;
+    }
 
     return DefaultTabController(
       length: 3,
+      initialIndex: initialTabIndex,
       child: Scaffold(
         extendBodyBehindAppBar: true,
         appBar: AppBar(
