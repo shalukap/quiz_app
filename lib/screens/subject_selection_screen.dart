@@ -13,60 +13,41 @@ class SubjectSelectionScreen extends StatelessWidget {
     final grade = args?['grade'] ?? 10;
     final medium = args?['medium'] as String? ?? 'English';
 
-    int initialTabIndex = 0;
-    if (medium == 'Sinhala') {
-      initialTabIndex = 1;
-    } else if (medium == 'Tamil') {
-      initialTabIndex = 2;
-    }
-
-    return DefaultTabController(
-      length: 3,
-      initialIndex: initialTabIndex,
-      child: Scaffold(
-        extendBodyBehindAppBar: true,
-        appBar: AppBar(
-          elevation: 0,
-          backgroundColor: Colors.transparent,
-          leading: const BackButton(color: Colors.white),
-          title: Text(
-            'QuizMaster',
-            style: GoogleFonts.inter(
-              fontWeight: FontWeight.w800,
-              fontSize: 18,
-              color: Colors.white,
-              letterSpacing: -0.5,
+    return Scaffold(
+      extendBodyBehindAppBar: true,
+      appBar: AppBar(
+        elevation: 0,
+        backgroundColor: Colors.transparent,
+        leading: const BackButton(color: Colors.white),
+        title: Text(
+          'QuizMaster',
+          style: GoogleFonts.inter(
+            fontWeight: FontWeight.w800,
+            fontSize: 18,
+            color: Colors.white,
+            letterSpacing: -0.5,
+          ),
+        ),
+        centerTitle: true,
+      ),
+      body: Stack(
+        children: [
+          _buildBackground(),
+          SafeArea(
+            child: Column(
+              children: [
+                const SizedBox(height: 16),
+                _buildProgressSection(),
+                const SizedBox(height: 32),
+                _buildHeader(grade),
+                const SizedBox(height: 24),
+                Expanded(
+                  child: _buildSubjectList(context, grade, medium),
+                ),
+              ],
             ),
           ),
-          centerTitle: true,
-        ),
-        body: Stack(
-          children: [
-            _buildBackground(),
-            SafeArea(
-              child: Column(
-                children: [
-                  const SizedBox(height: 16),
-                  _buildProgressSection(),
-                  const SizedBox(height: 32),
-                  _buildHeader(grade),
-                  const SizedBox(height: 24),
-                  _buildTabs(),
-                  const SizedBox(height: 16),
-                  Expanded(
-                    child: TabBarView(
-                      children: [
-                        _buildSubjectList(context, grade, 'English'),
-                        _buildSubjectList(context, grade, 'Sinhala'),
-                        _buildSubjectList(context, grade, 'Tamil'),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
+        ],
       ),
     );
   }
@@ -175,59 +156,6 @@ class SubjectSelectionScreen extends StatelessWidget {
             ),
           ),
         ],
-      ),
-    );
-  }
-
-  Widget _buildTabs() {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 24),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(16),
-        child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-          child: Container(
-            height: 52,
-            padding: const EdgeInsets.all(4),
-            decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.05),
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
-            ),
-            child: TabBar(
-              indicator: BoxDecoration(
-                gradient: const LinearGradient(
-                  colors: [Color(0xFF2563EB), Color(0xFF3B82F6)],
-                ),
-                borderRadius: BorderRadius.circular(12),
-                boxShadow: [
-                  BoxShadow(
-                    color: const Color(0xFF2563EB).withValues(alpha: 0.2),
-                    blurRadius: 8,
-                    offset: const Offset(0, 2),
-                  ),
-                ],
-              ),
-              dividerColor: Colors.transparent,
-              indicatorSize: TabBarIndicatorSize.tab,
-              labelColor: Colors.white,
-              unselectedLabelColor: Colors.white38,
-              labelStyle: GoogleFonts.inter(
-                fontWeight: FontWeight.w700,
-                fontSize: 13,
-              ),
-              unselectedLabelStyle: GoogleFonts.inter(
-                fontWeight: FontWeight.w600,
-                fontSize: 13,
-              ),
-              tabs: const [
-                Tab(text: 'English'),
-                Tab(text: 'Sinhala'),
-                Tab(text: 'Tamil'),
-              ],
-            ),
-          ),
-        ),
       ),
     );
   }

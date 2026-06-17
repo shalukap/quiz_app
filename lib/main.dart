@@ -15,6 +15,7 @@ import 'screens/profile_screen.dart';
 import 'screens/review_answers_screen.dart';
 import 'screens/bucket_selection_screen.dart';
 import 'screens/quiz_history_screen.dart';
+import 'screens/saved_questions_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -65,6 +66,7 @@ class QuizApp extends StatelessWidget {
         '/profile': (context) => const ProfileScreen(),
         '/review_answers': (context) => const ReviewAnswersScreen(),
         '/history': (context) => const QuizHistoryScreen(),
+        '/saved': (context) => const SavedQuestionsScreen(),
       },
     );
   }

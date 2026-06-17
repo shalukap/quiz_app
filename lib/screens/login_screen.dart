@@ -285,7 +285,7 @@ class _LoginScreenState extends State<LoginScreen> {
         ),
         const SizedBox(height: 4),
         Text(
-          'v1.2.0',
+          'v1.2.1',
           style: GoogleFonts.inter(
             fontSize: 12,
             fontWeight: FontWeight.w600,

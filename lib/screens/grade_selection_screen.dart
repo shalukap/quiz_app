@@ -15,6 +15,13 @@ class GradeSelectionScreen extends StatefulWidget {
 
 class _GradeSelectionScreenState extends State<GradeSelectionScreen> {
   int _selectedNav = 0;
+  Future<List<int>>? _activeGradesFuture;
+
+  @override
+  void initState() {
+    super.initState();
+    _activeGradesFuture = FirestoreService().getActiveGrades();
+  }
 
   void _onGradeTap(int grade) {
     showModalBottomSheet(
@@ -29,7 +36,7 @@ class _GradeSelectionScreenState extends State<GradeSelectionScreen> {
             Navigator.pop(context);
             Navigator.pushNamed(
               context,
-              '/buckets',
+              '/subjects',
               arguments: {
                 'grade': grade,
                 'medium': medium,
@@ -138,20 +145,47 @@ class _GradeSelectionScreenState extends State<GradeSelectionScreen> {
                 ),
                 const SizedBox(height: 24),
                 Expanded(
-                  child: GridView.builder(
-                    padding: const EdgeInsets.symmetric(horizontal: 24),
-                    gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                      crossAxisCount: 2,
-                      crossAxisSpacing: 16,
-                      mainAxisSpacing: 16,
-                      childAspectRatio: 1.1,
-                    ),
-                    itemCount: 13,
-                    itemBuilder: (context, index) {
-                      final grade = index + 1;
-                      return _GradeTile(
-                        grade: grade,
-                        onTap: () => _onGradeTap(grade),
+                  child: FutureBuilder<List<int>>(
+                    future: _activeGradesFuture,
+                    builder: (context, snapshot) {
+                      if (snapshot.connectionState == ConnectionState.waiting) {
+                        return const Center(
+                          child: CircularProgressIndicator(color: Color(0xFF3B82F6)),
+                        );
+                      }
+                      if (snapshot.hasError) {
+                        return Center(
+                          child: Text(
+                            'Error loading grades',
+                            style: GoogleFonts.inter(color: Colors.white54),
+                          ),
+                        );
+                      }
+                      final activeGrades = snapshot.data ?? [];
+                      if (activeGrades.isEmpty) {
+                        return Center(
+                          child: Text(
+                            'No grades with questions found.',
+                            style: GoogleFonts.inter(color: Colors.white54, fontSize: 16),
+                          ),
+                        );
+                      }
+                      return GridView.builder(
+                        padding: const EdgeInsets.symmetric(horizontal: 24),
+                        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                          crossAxisCount: 2,
+                          crossAxisSpacing: 16,
+                          mainAxisSpacing: 16,
+                          childAspectRatio: 1.1,
+                        ),
+                        itemCount: activeGrades.length,
+                        itemBuilder: (context, index) {
+                          final grade = activeGrades[index];
+                          return _GradeTile(
+                            grade: grade,
+                            onTap: () => _onGradeTap(grade),
+                          );
+                        },
                       );
                     },
                   ),
@@ -189,10 +223,16 @@ class _GradeSelectionScreenState extends State<GradeSelectionScreen> {
       ),
       child: BottomNavigationBar(
         currentIndex: _selectedNav,
-        onTap: (i) {
+        onTap: (i) async {
+          if (i == 0) return;
           setState(() => _selectedNav = i);
-          if (i == 1) Navigator.pushNamed(context, '/leaderboard');
-          if (i == 3) Navigator.pushNamed(context, '/profile');
+          final navigator = Navigator.of(context);
+          if (i == 1) await navigator.pushNamed('/leaderboard');
+          if (i == 2) await navigator.pushNamed('/saved');
+          if (i == 3) await navigator.pushNamed('/profile');
+          if (mounted) {
+            setState(() => _selectedNav = 0);
+          }
         },
         type: BottomNavigationBarType.fixed,
         selectedItemColor: const Color(0xFF3B82F6),

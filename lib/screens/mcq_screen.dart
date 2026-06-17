@@ -17,13 +17,14 @@ class McqScreen extends StatefulWidget {
 class _McqScreenState extends State<McqScreen> {
   int _currentQuestion = 0;
   int? _selectedOption;
-  bool _bookmarked = false;
   int _score = 0;
 
   List<Question>? _questions;
   bool _isLoading = false;
   String? _error;
-  final List<int> _userAnswers = [];
+  List<int> _userAnswers = [];
+  List<bool> _bookmarkedQuestions = [];
+  List<int> _questionTimesRemaining = [];
   bool _isSaving = false;
   int _grade = 10; // Added
 
@@ -40,12 +41,15 @@ class _McqScreenState extends State<McqScreen> {
     _timer?.cancel();
     if (_questions == null || _questions!.isEmpty) return;
 
-    final question = _questions![_currentQuestion];
-    final limit = question.timeLimit ?? 30;
+    final limit = _questionTimesRemaining[_currentQuestion];
 
     setState(() {
       _secondsRemaining = limit;
     });
+
+    if (_secondsRemaining <= 0) {
+      return;
+    }
 
     _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
       if (!mounted) {
@@ -55,6 +59,7 @@ class _McqScreenState extends State<McqScreen> {
       setState(() {
         if (_secondsRemaining > 0) {
           _secondsRemaining--;
+          _questionTimesRemaining[_currentQuestion] = _secondsRemaining;
         } else {
           timer.cancel();
           _handleTimeUp();
@@ -65,16 +70,15 @@ class _McqScreenState extends State<McqScreen> {
 
   void _handleTimeUp() {
     if (!mounted) return;
-    _userAnswers.add(-1);
 
     setState(() {
       if (_currentQuestion < _questions!.length - 1) {
         _currentQuestion++;
-        _selectedOption = null;
-        _bookmarked = false;
+        final savedAnswer = _userAnswers[_currentQuestion];
+        _selectedOption = savedAnswer == -1 ? null : savedAnswer;
         _startTimerForQuestion();
       } else {
-        _saveAndShowResults();
+        _finishQuiz();
       }
     });
   }
@@ -91,20 +95,34 @@ class _McqScreenState extends State<McqScreen> {
     setState(() => _isLoading = true);
     try {
       final args = ModalRoute.of(context)?.settings.arguments as Map?;
-      final subjectId = args?['subjectId'] as String? ?? '';
-      final grade = args?['grade'] as int? ?? 10;
-      final medium = args?['medium'] as String?;
-      final bucketId = args?['bucketId'] as String?;
-
       final db = FirestoreService();
-      final questions = await db.getQuestions(subjectId, grade,
-          medium: medium, bucketId: bucketId);
+      final username = AppState.currentUsername ?? 'guest';
+      
+      List<Question> questions = [];
+      int grade = 10;
+      
+      if (args != null && args.containsKey('questions')) {
+        questions = List<Question>.from(args['questions']);
+        grade = args['grade'] as int? ?? 10;
+      } else {
+        final subjectId = args?['subjectId'] as String? ?? '';
+        grade = args?['grade'] as int? ?? 10;
+        final medium = args?['medium'] as String?;
+        final bucketId = args?['bucketId'] as String?;
+        questions = await db.getQuestions(subjectId, grade,
+            medium: medium, bucketId: bucketId);
+      }
+
+      final bookmarkedIds = await db.getBookmarkedQuestionIds(username);
 
       if (mounted) {
         setState(() {
           _questions = questions;
           _grade = grade; // Store grade
           _isLoading = false;
+          _userAnswers = List<int>.filled(questions.length, -1);
+          _bookmarkedQuestions = questions.map((q) => bookmarkedIds.contains(q.id)).toList();
+          _questionTimesRemaining = questions.map((q) => q.timeLimit ?? 30).toList();
         });
         _startTimerForQuestion();
       }
@@ -118,26 +136,41 @@ class _McqScreenState extends State<McqScreen> {
     }
   }
 
-  void _submitAnswer() {
-    if (_selectedOption == null || _questions == null) return;
+  void _navigateToQuestion(int targetIndex) {
+    if (_questions == null || targetIndex < 0 || targetIndex >= _questions!.length) return;
 
     _timer?.cancel();
-    _userAnswers.add(_selectedOption!);
-
-    if (_selectedOption == _questions![_currentQuestion].correctIndex) {
-      _score++;
-    }
+    
+    // Save current question's time remaining
+    _questionTimesRemaining[_currentQuestion] = _secondsRemaining;
 
     setState(() {
-      if (_currentQuestion < _questions!.length - 1) {
-        _currentQuestion++;
-        _selectedOption = null;
-        _bookmarked = false;
-        _startTimerForQuestion();
-      } else {
-        _saveAndShowResults();
-      }
+      _currentQuestion = targetIndex;
+      final savedAnswer = _userAnswers[_currentQuestion];
+      _selectedOption = savedAnswer == -1 ? null : savedAnswer;
     });
+
+    _startTimerForQuestion();
+  }
+
+  void _finishQuiz() {
+    _timer?.cancel();
+    
+    // Save current question's remaining time
+    if (_questions != null && _currentQuestion < _questionTimesRemaining.length) {
+      _questionTimesRemaining[_currentQuestion] = _secondsRemaining;
+    }
+
+    _score = 0;
+    if (_questions != null) {
+      for (int i = 0; i < _questions!.length; i++) {
+        if (_userAnswers[i] == _questions![i].correctIndex) {
+          _score++;
+        }
+      }
+    }
+
+    _saveAndShowResults();
   }
 
   Future<void> _saveAndShowResults() async {
@@ -235,8 +268,9 @@ class _McqScreenState extends State<McqScreen> {
                         _currentQuestion = 0;
                         _selectedOption = null;
                         _score = 0;
-                        _bookmarked = false;
-                        _userAnswers.clear();
+                        _userAnswers = List<int>.filled(_questions!.length, -1);
+                        _bookmarkedQuestions = List<bool>.filled(_questions!.length, false);
+                        _questionTimesRemaining = _questions!.map((q) => q.timeLimit ?? 30).toList();
                       });
                       _startTimerForQuestion();
                     } else {
@@ -654,7 +688,14 @@ class _McqScreenState extends State<McqScreen> {
         return Padding(
           padding: const EdgeInsets.only(bottom: 16),
           child: GestureDetector(
-            onTap: () => setState(() => _selectedOption = i),
+            onTap: _secondsRemaining > 0
+                ? () {
+                    setState(() {
+                      _selectedOption = i;
+                      _userAnswers[_currentQuestion] = i;
+                    });
+                  }
+                : null,
             child: ClipRRect(
               borderRadius: BorderRadius.circular(20),
               child: BackdropFilter(
@@ -739,6 +780,8 @@ class _McqScreenState extends State<McqScreen> {
   }
 
   Widget _buildBottomActions() {
+    if (_questions == null || _questions!.isEmpty) return const SizedBox();
+    
     return Container(
       padding: EdgeInsets.fromLTRB(24, 16, 24, 16 + MediaQuery.of(context).padding.bottom),
       decoration: BoxDecoration(
@@ -747,31 +790,92 @@ class _McqScreenState extends State<McqScreen> {
       ),
       child: Row(
         children: [
+          // Bookmark Button (always active)
           GestureDetector(
-            onTap: () => setState(() => _bookmarked = !_bookmarked),
-            child: Container(
+            onTap: () async {
+              final newStatus = !_bookmarkedQuestions[_currentQuestion];
+              setState(() {
+                _bookmarkedQuestions[_currentQuestion] = newStatus;
+              });
+              try {
+                await FirestoreService().toggleBookmark(
+                  AppState.currentUsername ?? 'guest',
+                  _questions![_currentQuestion],
+                  newStatus,
+                );
+              } catch (e) {
+                debugPrint('Failed to toggle bookmark: $e');
+              }
+            },
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 200),
               width: 56,
               height: 56,
               decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: 0.05),
+                color: _bookmarkedQuestions[_currentQuestion]
+                    ? const Color(0xFF3B82F6).withValues(alpha: 0.15)
+                    : Colors.white.withValues(alpha: 0.05),
                 borderRadius: BorderRadius.circular(18),
-                border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
+                border: Border.all(
+                  color: _bookmarkedQuestions[_currentQuestion]
+                      ? const Color(0xFF3B82F6)
+                      : Colors.white.withValues(alpha: 0.1),
+                  width: 1.2,
+                ),
               ),
               child: Icon(
-                _bookmarked
+                _bookmarkedQuestions[_currentQuestion]
                     ? Icons.bookmark_rounded
                     : Icons.bookmark_border_rounded,
-                color: _bookmarked ? const Color(0xFF60A5FA) : Colors.white24,
+                color: _bookmarkedQuestions[_currentQuestion] ? const Color(0xFF60A5FA) : Colors.white24,
                 size: 24,
               ),
             ),
           ),
-          const SizedBox(width: 16),
+          const SizedBox(width: 12),
+          
+          // PREVIOUS Button (enabled only if _currentQuestion > 0)
+          GestureDetector(
+            onTap: _currentQuestion > 0 
+                ? () => _navigateToQuestion(_currentQuestion - 1)
+                : null,
+            child: AnimatedOpacity(
+              duration: const Duration(milliseconds: 200),
+              opacity: _currentQuestion > 0 ? 1.0 : 0.3,
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 200),
+                width: 56,
+                height: 56,
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.05),
+                  borderRadius: BorderRadius.circular(18),
+                  border: Border.all(
+                    color: Colors.white.withValues(alpha: 0.1),
+                    width: 1.2,
+                  ),
+                ),
+                child: const Icon(
+                  Icons.chevron_left_rounded,
+                  color: Colors.white,
+                  size: 28,
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(width: 12),
+          
+          // NEXT / FINISH QUIZ Button
           Expanded(
             child: SizedBox(
               height: 56,
               child: ElevatedButton(
-                onPressed: _selectedOption != null ? _submitAnswer : null,
+                onPressed: () {
+                  if (_currentQuestion < (_questions?.length ?? 0) - 1) {
+                    _navigateToQuestion(_currentQuestion + 1);
+                  } else {
+                    _finishQuiz();
+                  }
+                },
                 style: ElevatedButton.styleFrom(
                   backgroundColor: const Color(0xFF3B82F6),
                   disabledBackgroundColor: Colors.white.withValues(alpha: 0.05),
@@ -789,7 +893,7 @@ class _McqScreenState extends State<McqScreen> {
                       )
                     : Text(
                         _currentQuestion < (_questions?.length ?? 0) - 1
-                            ? 'SUBMIT ANSWER'
+                            ? 'NEXT'
                             : 'FINISH QUIZ',
                         style: GoogleFonts.inter(
                           fontSize: 14,

@@ -424,7 +424,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         _MenuItem(
           icon: Icons.bookmark_outline_rounded,
           title: 'Saved Questions',
-          onTap: () {},
+          onTap: () => Navigator.pushNamed(context, '/saved'),
         ),
         _MenuItem(
           icon: Icons.notifications_none_rounded,

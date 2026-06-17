@@ -149,6 +149,25 @@ class Question {
       bucketNumber: data['bucketNumber'] != null ? (data['bucketNumber'] as num).toInt() : null,
     );
   }
+
+  Map<String, dynamic> toMap() {
+    return {
+      'subjectId': subjectId,
+      'grade': grade,
+      'text': text,
+      'options': options,
+      'correctIndex': correctIndex,
+      if (imageUrl != null) 'imageUrl': imageUrl,
+      if (optionImages != null) 'optionImages': optionImages,
+      if (timeLimit != null) 'timeLimit': timeLimit,
+      if (medium != null) 'medium': medium,
+      if (scenarioText != null) 'scenarioText': scenarioText,
+      if (scenarioImageUrl != null) 'scenarioImageUrl': scenarioImageUrl,
+      if (bucketId != null) 'bucketId': bucketId,
+      if (bucketName != null) 'bucketName': bucketName,
+      if (bucketNumber != null) 'bucketNumber': bucketNumber,
+    };
+  }
 }
 
 class QuizResult {

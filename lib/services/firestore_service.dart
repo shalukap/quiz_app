@@ -49,7 +49,50 @@ class FirestoreService {
     }
     
     final snapshot = await query.get();
-    return snapshot.docs.map((doc) => Subject.fromMap(doc.id, doc.data() as Map<String, dynamic>)).toList();
+    final allSubjects = snapshot.docs.map((doc) => Subject.fromMap(doc.id, doc.data() as Map<String, dynamic>)).toList();
+
+    // Filter to only include subjects that have at least one question in the database
+    final List<Subject> activeSubjects = [];
+    final List<Future<QuerySnapshot>> questionChecks = [];
+    
+    for (var subject in allSubjects) {
+      Query qCheck = _db.collection('questions')
+          .where('grade', isEqualTo: grade)
+          .where('subjectId', isEqualTo: subject.id);
+      if (medium != null) {
+        qCheck = qCheck.where('medium', isEqualTo: medium);
+      }
+      questionChecks.add(qCheck.limit(1).get());
+    }
+    
+    final checks = await Future.wait(questionChecks);
+    for (int i = 0; i < allSubjects.length; i++) {
+      if (checks[i].docs.isNotEmpty) {
+        activeSubjects.add(allSubjects[i]);
+      }
+    }
+    
+    return activeSubjects;
+  }
+
+  Future<List<int>> getActiveGrades() async {
+    final List<Future<QuerySnapshot>> futures = [];
+    for (int grade = 1; grade <= 13; grade++) {
+      futures.add(
+        _db.collection('questions')
+            .where('grade', isEqualTo: grade)
+            .limit(1)
+            .get()
+      );
+    }
+    final snapshots = await Future.wait(futures);
+    final activeGrades = <int>[];
+    for (int i = 0; i < snapshots.length; i++) {
+      if (snapshots[i].docs.isNotEmpty) {
+        activeGrades.add(i + 1);
+      }
+    }
+    return activeGrades;
   }
 
 
@@ -227,5 +270,44 @@ class FirestoreService {
     await _db.collection('users').doc(docId).update({
       'photoUrl': photoUrl,
     });
+  }
+
+  // BOOKMARKS
+  Future<void> toggleBookmark(String username, Question question, bool isBookmarked) async {
+    final docId = '${username}_${question.id}';
+    final ref = _db.collection('bookmarks').doc(docId);
+    
+    if (isBookmarked) {
+      await ref.set({
+        'userId': username,
+        'questionId': question.id,
+        'savedAt': FieldValue.serverTimestamp(),
+        'question': question.toMap(),
+      });
+    } else {
+      await ref.delete();
+    }
+  }
+
+  Future<Set<String>> getBookmarkedQuestionIds(String username) async {
+    final snapshot = await _db.collection('bookmarks')
+        .where('userId', isEqualTo: username)
+        .get();
+    return snapshot.docs.map((doc) => doc.data()['questionId'] as String).toSet();
+  }
+
+  Future<List<Question>> getBookmarkedQuestions(String username) async {
+    final snapshot = await _db.collection('bookmarks')
+        .where('userId', isEqualTo: username)
+        .get();
+    
+    final bookmarks = snapshot.docs.map((doc) {
+      final data = doc.data();
+      final qData = data['question'] as Map<String, dynamic>;
+      final qId = data['questionId'] as String;
+      return Question.fromMap(qId, qData);
+    }).toList();
+    
+    return bookmarks;
   }
 }
