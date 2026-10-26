@@ -1,10 +1,14 @@
-import 'dart:ui';
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 
 import '../services/firestore_service.dart';
+import '../services/app_open_ad_manager.dart';
+import '../services/subscription_service.dart';
 import '../models/quiz_models.dart';
 import '../state/app_state.dart';
+import '../theme/app_theme.dart';
+import '../widgets/glass_ui.dart';
+import '../services/analytics_service.dart';
+import '../config/grades.dart';
 
 class GradeSelectionScreen extends StatefulWidget {
   const GradeSelectionScreen({super.key});
@@ -16,23 +20,29 @@ class GradeSelectionScreen extends StatefulWidget {
 class _GradeSelectionScreenState extends State<GradeSelectionScreen> {
   int _selectedNav = 0;
   Future<List<int>>? _activeGradesFuture;
+  Future<UserProfile?>? _profileFuture;
 
   @override
   void initState() {
     super.initState();
     _activeGradesFuture = FirestoreService().getActiveGrades();
+    _profileFuture = AppState.currentUid != null
+        ? FirestoreService().getUserProfileByUid(AppState.currentUid!)
+        : null;
   }
 
   void _onGradeTap(int grade) {
+    AppOpenAdManager.instance.showAdIfAvailable();
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.transparent,
-      barrierColor: Colors.black.withValues(alpha: 0.5),
+      barrierColor: Colors.black.withValues(alpha: 0.55),
       isScrollControlled: true,
       builder: (context) {
         return _MediumSelectionSheet(
           grade: grade,
           onMediumSelected: (medium) {
+            AnalyticsService.instance.setStudyProfile(grade: grade, medium: medium);
             Navigator.pop(context);
             Navigator.pushNamed(
               context,
@@ -48,223 +58,273 @@ class _GradeSelectionScreenState extends State<GradeSelectionScreen> {
     );
   }
 
+  void _onEbExamsTap() {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      barrierColor: Colors.black.withValues(alpha: 0.55),
+      isScrollControlled: true,
+      builder: (sheetContext) => _EbExamSheet(
+        onExamSelected: (grade) {
+          Navigator.pop(sheetContext);
+          _onGradeTap(grade);
+        },
+      ),
+    );
+  }
+
+  Future<void> _onNavTap(int i) async {
+    if (i == 0) return;
+    setState(() => _selectedNav = i);
+    final navigator = Navigator.of(context);
+    if (i == 1) await navigator.pushNamed('/leaderboard');
+    if (i == 2) await navigator.pushNamed('/saved');
+    if (i == 3) await navigator.pushNamed('/profile');
+    if (mounted) {
+      setState(() => _selectedNav = 0);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
+    PremiumScope.watch(context);
+    final name = AppState.currentUsername;
     return Scaffold(
-      extendBodyBehindAppBar: true,
-      appBar: AppBar(
-        elevation: 0,
-        backgroundColor: Colors.transparent,
-        leading: IconButton(
-          icon: const Icon(Icons.menu_rounded, color: Colors.white70),
-          onPressed: () {},
-        ),
-        title: Text(
-          'QuizMaster',
-          style: GoogleFonts.inter(
-            fontWeight: FontWeight.w800,
-            fontSize: 18,
-            color: Colors.white,
-            letterSpacing: -0.5,
+      extendBody: true,
+      body: AuroraBackground(
+        child: SafeArea(
+          bottom: false,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(24, 12, 24, 0),
+                child: _buildTopBar(),
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(24, 28, 24, 0),
+                child: FadeSlideIn(
+                  child: PageHeader(
+                    overline: name != null && name.isNotEmpty ? 'Hi, $name 👋' : 'Welcome 👋',
+                    title: 'Choose your\ngrade',
+                    subtitle: 'Pick a level to start practicing',
+                  ),
+                ),
+              ),
+              const SizedBox(height: 24),
+              Expanded(
+                child: FutureBuilder<List<int>>(
+                  future: _activeGradesFuture,
+                  builder: (context, snapshot) {
+                    if (snapshot.connectionState == ConnectionState.waiting) {
+                      return const AppLoader();
+                    }
+                    final activeGrades = snapshot.data ?? [];
+                    return CustomScrollView(
+                      slivers: [
+                        SliverPadding(
+                          padding: const EdgeInsets.fromLTRB(24, 4, 24, 14),
+                          sliver: SliverToBoxAdapter(
+                            child: FadeSlideIn(child: _EbExamsCard(onTap: _onEbExamsTap)),
+                          ),
+                        ),
+                        if (snapshot.hasError)
+                          const SliverFillRemaining(
+                            hasScrollBody: false,
+                            child: EmptyState(
+                              icon: Icons.cloud_off_rounded,
+                              title: 'Error loading grades',
+                              subtitle: 'Check your connection and try again.',
+                            ),
+                          )
+                        else if (activeGrades.isEmpty)
+                          const SliverFillRemaining(
+                            hasScrollBody: false,
+                            child: EmptyState(
+                              icon: Icons.school_outlined,
+                              title: 'No grades yet',
+                              subtitle: 'No grades with questions found.',
+                            ),
+                          )
+                        else
+                          SliverPadding(
+                            padding: const EdgeInsets.fromLTRB(24, 0, 24, 120),
+                            sliver: SliverGrid.builder(
+                              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                                crossAxisCount: 2,
+                                crossAxisSpacing: 14,
+                                mainAxisSpacing: 14,
+                                childAspectRatio: 1.0,
+                              ),
+                              itemCount: activeGrades.length,
+                              itemBuilder: (context, index) {
+                                final grade = activeGrades[index];
+                                return FadeSlideIn(
+                                  index: index + 1,
+                                  child: _GradeTile(
+                                    grade: grade,
+                                    color: AppColors.accentAt(index),
+                                    onTap: () => _onGradeTap(grade),
+                                  ),
+                                );
+                              },
+                            ),
+                          ),
+                      ],
+                    );
+                  },
+                ),
+              ),
+            ],
           ),
         ),
-        centerTitle: true,
-        actions: [
-          Padding(
-            padding: const EdgeInsets.only(right: 16),
-            child: GestureDetector(
-              onTap: () => Navigator.pushNamed(context, '/profile'),
-              child: FutureBuilder<UserProfile?>(
-                future: AppState.currentUid != null 
-                    ? FirestoreService().getUserProfileByUid(AppState.currentUid!) 
-                    : null,
-                builder: (context, snapshot) {
-                  final photoUrl = snapshot.data?.photoUrl;
-                  return Container(
-                    padding: photoUrl != null ? EdgeInsets.zero : const EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      color: Colors.white.withValues(alpha: 0.05),
-                      shape: BoxShape.circle,
-                      border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
-                    ),
-                    child: ClipOval(
-                      child: photoUrl != null
-                          ? Image.network(
-                              photoUrl,
-                              width: 36,
-                              height: 36,
-                              fit: BoxFit.cover,
-                              errorBuilder: (context, error, stackTrace) => const Icon(
-                                Icons.person_outline_rounded,
-                                color: Colors.white70,
-                                size: 20,
-                              ),
-                            )
-                          : const Icon(Icons.person_outline_rounded,
-                              color: Colors.white70, size: 20),
-                    ),
-                  );
-                },
+      ),
+      bottomNavigationBar: FloatingNavBar(currentIndex: _selectedNav, onTap: _onNavTap),
+    );
+  }
+
+  Widget _buildTopBar() {
+    return Row(
+      children: [
+        Container(
+          width: 40,
+          height: 40,
+          padding: const EdgeInsets.all(2),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(14),
+            gradient: AppGradients.progress,
+          ),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(12),
+            child: Image.asset('assets/images/logo.jpeg', fit: BoxFit.cover),
+          ),
+        ),
+        const SizedBox(width: 12),
+        Text('QuizMaster', style: AppText.style(size: 18, weight: FontWeight.w800, spacing: -0.4)),
+        const SizedBox(width: 8),
+        if (SubscriptionService.instance.isPremium)
+          const PremiumBadge(compact: true)
+        else if (SubscriptionService.instance.isAvailable)
+          Pressable(
+            onTap: () => Navigator.pushNamed(context, '/premium'),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(100),
+                border: Border.all(color: PremiumStyle.gold.withValues(alpha: 0.7)),
+                color: PremiumStyle.gold.withValues(alpha: 0.12),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(Icons.workspace_premium_rounded, size: 13, color: PremiumStyle.goldLight),
+                  const SizedBox(width: 4),
+                  Text('Go Premium',
+                      style: AppText.style(size: 10.5, weight: FontWeight.w800, color: PremiumStyle.goldLight)),
+                ],
               ),
             ),
           ),
-        ],
-      ),
-      body: Stack(
+        const Spacer(),
+        Pressable(
+          onTap: () => Navigator.pushNamed(context, '/profile'),
+          child: FutureBuilder<UserProfile?>(
+            future: _profileFuture,
+            builder: (context, snapshot) {
+              final photoUrl = snapshot.data?.photoUrl;
+              return Container(
+                width: 44,
+                height: 44,
+                padding: const EdgeInsets.all(2),
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  gradient: AppGradients.primary,
+                ),
+                child: ClipOval(
+                  child: ColoredBox(
+                    color: AppColors.bgElevated,
+                    child: photoUrl != null
+                        ? Image.network(
+                            photoUrl,
+                            fit: BoxFit.cover,
+                            errorBuilder: (context, error, stackTrace) => const Icon(
+                              Icons.person_rounded,
+                              color: Colors.white70,
+                              size: 22,
+                            ),
+                          )
+                        : const Icon(Icons.person_rounded, color: Colors.white70, size: 22),
+                  ),
+                ),
+              );
+            },
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _GradeTile extends StatelessWidget {
+  final int grade;
+  final Color color;
+  final VoidCallback onTap;
+
+  const _GradeTile({required this.grade, required this.color, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return GlassCard(
+      onTap: onTap,
+      padding: EdgeInsets.zero,
+      child: Stack(
         children: [
-          _buildBackground(),
-          SafeArea(
+          // Accent glow in the corner
+          Positioned(
+            right: -30,
+            top: -30,
+            child: Container(
+              width: 110,
+              height: 110,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                gradient: RadialGradient(
+                  colors: [color.withValues(alpha: 0.45), color.withValues(alpha: 0)],
+                ),
+              ),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.all(18),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(24, 24, 24, 0),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Select Your Grade',
-                        style: GoogleFonts.inter(
-                          fontSize: 28,
-                          fontWeight: FontWeight.w900,
-                          color: Colors.white,
-                          letterSpacing: -0.5,
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        'Choose a level to start practicing',
-                        style: GoogleFonts.inter(
-                          fontSize: 14,
-                          color: Colors.white54,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                    ],
-                  ),
+                IconBadge(icon: Icons.school_rounded, color: color, size: 40),
+                const Spacer(),
+                Text(
+                  grade.toString().padLeft(2, '0'),
+                  style: AppText.style(size: 40, weight: FontWeight.w800, spacing: -1.5, height: 1),
                 ),
-                const SizedBox(height: 24),
-                Expanded(
-                  child: FutureBuilder<List<int>>(
-                    future: _activeGradesFuture,
-                    builder: (context, snapshot) {
-                      if (snapshot.connectionState == ConnectionState.waiting) {
-                        return const Center(
-                          child: CircularProgressIndicator(color: Color(0xFF3B82F6)),
-                        );
-                      }
-                      if (snapshot.hasError) {
-                        return Center(
-                          child: Text(
-                            'Error loading grades',
-                            style: GoogleFonts.inter(color: Colors.white54),
-                          ),
-                        );
-                      }
-                      final activeGrades = snapshot.data ?? [];
-                      if (activeGrades.isEmpty) {
-                        return Center(
-                          child: Text(
-                            'No grades with questions found.',
-                            style: GoogleFonts.inter(color: Colors.white54, fontSize: 16),
-                          ),
-                        );
-                      }
-                      return GridView.builder(
-                        padding: const EdgeInsets.symmetric(horizontal: 24),
-                        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                          crossAxisCount: 2,
-                          crossAxisSpacing: 16,
-                          mainAxisSpacing: 16,
-                          childAspectRatio: 1.1,
-                        ),
-                        itemCount: activeGrades.length,
-                        itemBuilder: (context, index) {
-                          final grade = activeGrades[index];
-                          return _GradeTile(
-                            grade: grade,
-                            onTap: () => _onGradeTap(grade),
-                          );
-                        },
-                      );
-                    },
-                  ),
+                const SizedBox(height: 6),
+                Row(
+                  children: [
+                    Text(
+                      'GRADE $grade',
+                      style: AppText.style(
+                        size: 11,
+                        weight: FontWeight.w800,
+                        spacing: 1.2,
+                        color: Color.lerp(color, Colors.white, 0.35),
+                      ),
+                    ),
+                    const Spacer(),
+                    SubscriptionService.instance.hasGrade(grade)
+                        ? const Icon(Icons.workspace_premium_rounded, size: 18, color: PremiumStyle.gold)
+                        : Icon(Icons.arrow_forward_rounded, size: 18, color: AppColors.textMuted),
+                  ],
                 ),
               ],
             ),
-          ),
-        ],
-      ),
-      bottomNavigationBar: _buildBottomNav(),
-    );
-  }
-
-  Widget _buildBackground() {
-    return Container(
-      decoration: const BoxDecoration(
-        color: Color(0xFF0F172A),
-        gradient: RadialGradient(
-          center: Alignment(0.7, -0.6),
-          radius: 1.5,
-          colors: [
-            Color(0xFF1E3A8A),
-            Color(0xFF0F172A),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildBottomNav() {
-    return Container(
-      decoration: BoxDecoration(
-        color: const Color(0xFF0F172A).withValues(alpha: 0.8),
-        border: Border(top: BorderSide(color: Colors.white.withValues(alpha: 0.05))),
-      ),
-      child: BottomNavigationBar(
-        currentIndex: _selectedNav,
-        onTap: (i) async {
-          if (i == 0) return;
-          setState(() => _selectedNav = i);
-          final navigator = Navigator.of(context);
-          if (i == 1) await navigator.pushNamed('/leaderboard');
-          if (i == 2) await navigator.pushNamed('/saved');
-          if (i == 3) await navigator.pushNamed('/profile');
-          if (mounted) {
-            setState(() => _selectedNav = 0);
-          }
-        },
-        type: BottomNavigationBarType.fixed,
-        selectedItemColor: const Color(0xFF3B82F6),
-        unselectedItemColor: Colors.white24,
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        selectedLabelStyle: GoogleFonts.inter(
-          fontWeight: FontWeight.w700,
-          fontSize: 10,
-          letterSpacing: 0.5,
-        ),
-        unselectedLabelStyle: GoogleFonts.inter(
-          fontWeight: FontWeight.w500,
-          fontSize: 10,
-          letterSpacing: 0.5,
-        ),
-        items: const [
-          BottomNavigationBarItem(
-            icon: Icon(Icons.grid_view_rounded),
-            label: 'GRADES',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.leaderboard_rounded),
-            label: 'GLOBAL',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.bookmark_rounded),
-            label: 'SAVED',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.person_rounded),
-            label: 'PROFILE',
           ),
         ],
       ),
@@ -272,55 +332,75 @@ class _GradeSelectionScreenState extends State<GradeSelectionScreen> {
   }
 }
 
-class _GradeTile extends StatelessWidget {
-  final int grade;
+class _EbExamsCard extends StatelessWidget {
   final VoidCallback onTap;
 
-  const _GradeTile({required this.grade, required this.onTap});
+  const _EbExamsCard({required this.onTap});
 
   @override
   Widget build(BuildContext context) {
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(24),
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
-        child: GestureDetector(
-          onTap: onTap,
-          child: Container(
-            decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.05),
-              borderRadius: BorderRadius.circular(24),
-              border: Border.all(
-                color: Colors.white.withValues(alpha: 0.1),
-                width: 1.5,
-              ),
-            ),
+    const color = PremiumStyle.gold;
+    return GlassCard(
+      onTap: onTap,
+      padding: const EdgeInsets.all(18),
+      child: Row(
+        children: [
+          const IconBadge(icon: Icons.emoji_events_rounded, color: color, size: 52),
+          const SizedBox(width: 16),
+          Expanded(
             child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  grade.toString().padLeft(2, '0'),
-                  style: GoogleFonts.inter(
-                    fontSize: 44,
-                    fontWeight: FontWeight.w900,
-                    color: Colors.white,
-                    letterSpacing: -1,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  'GRADE $grade',
-                  style: GoogleFonts.inter(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w700,
-                    color: const Color(0xFF60A5FA),
-                    letterSpacing: 1,
-                  ),
+                Text('EB Exams', style: AppText.style(size: 18, weight: FontWeight.w800, spacing: -0.3)),
+                const SizedBox(height: 6),
+                Wrap(
+                  spacing: 6,
+                  runSpacing: 6,
+                  children: [
+                    for (final grade in Grades.ebExams) Pill(label: Grades.label(grade), color: color),
+                  ],
                 ),
               ],
             ),
           ),
-        ),
+          const SizedBox(width: 8),
+          Icon(Icons.chevron_right_rounded, color: AppColors.textMuted),
+        ],
+      ),
+    );
+  }
+}
+
+class _EbExamSheet extends StatelessWidget {
+  final ValueChanged<int> onExamSelected;
+
+  const _EbExamSheet({required this.onExamSelected});
+
+  static const _colors = [AppColors.primary, AppColors.violet, AppColors.pink];
+
+  @override
+  Widget build(BuildContext context) {
+    return GlassSheet(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('EB Exams', style: AppText.style(size: 22, weight: FontWeight.w800, spacing: -0.5)),
+          const SizedBox(height: 4),
+          Text('Choose your exam', style: AppText.body(color: AppColors.textMuted)),
+          const SizedBox(height: 22),
+          for (final (index, grade) in Grades.ebExams.indexed) ...[
+            if (index > 0) const SizedBox(height: 12),
+            _MediumOptionTile(
+              title: Grades.label(grade),
+              subtitle: '${Grades.label(grade)} exam practice papers',
+              icon: Icons.emoji_events_rounded,
+              color: _colors[index % _colors.length],
+              onTap: () => onExamSelected(grade),
+            ),
+          ],
+          const SizedBox(height: 8),
+        ],
       ),
     );
   }
@@ -337,108 +417,52 @@ class _MediumSelectionSheet extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return BackdropFilter(
-      filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
-      child: Container(
-        decoration: BoxDecoration(
-          color: const Color(0xFF0F172A).withValues(alpha: 0.9),
-          borderRadius: const BorderRadius.vertical(top: Radius.circular(32)),
-          border: Border.all(
-            color: Colors.white.withValues(alpha: 0.08),
-            width: 1.5,
-          ),
-        ),
-        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
-        child: SafeArea(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
+    return GlassSheet(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Container(
-                width: 40,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: Colors.white24,
-                  borderRadius: BorderRadius.circular(2),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('Select medium', style: AppText.style(size: 22, weight: FontWeight.w800, spacing: -0.5)),
+                    const SizedBox(height: 4),
+                    Text('Choose the instruction language', style: AppText.body(color: AppColors.textMuted)),
+                  ],
                 ),
               ),
-              const SizedBox(height: 24),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Select Medium',
-                          style: GoogleFonts.inter(
-                            fontSize: 22,
-                            fontWeight: FontWeight.w900,
-                            color: Colors.white,
-                            letterSpacing: -0.5,
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          'Choose instruction language for curriculum',
-                          style: GoogleFonts.inter(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w500,
-                            color: Colors.white54,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF3B82F6).withValues(alpha: 0.15),
-                      borderRadius: BorderRadius.circular(10),
-                      border: Border.all(
-                        color: const Color(0xFF3B82F6).withValues(alpha: 0.25),
-                      ),
-                    ),
-                    child: Text(
-                      'GRADE $grade',
-                      style: GoogleFonts.inter(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w800,
-                        color: const Color(0xFF60A5FA),
-                        letterSpacing: 0.5,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 24),
-              _MediumOptionTile(
-                title: 'English Medium',
-                subtitle: 'English language subjects & quizzes',
-                icon: Icons.language_rounded,
-                gradientColors: const [Color(0xFF2563EB), Color(0xFF3B82F6)],
-                onTap: () => onMediumSelected('English'),
-              ),
-              const SizedBox(height: 16),
-              _MediumOptionTile(
-                title: 'Sinhala Medium',
-                subtitle: 'සිංහල මාධ්‍යය ප්‍රශ්න පත්‍ර සහ පාඩම්',
-                icon: Icons.translate_rounded,
-                gradientColors: const [Color(0xFF8B5CF6), Color(0xFFA78BFA)],
-                onTap: () => onMediumSelected('Sinhala'),
-              ),
-              const SizedBox(height: 16),
-              _MediumOptionTile(
-                title: 'Tamil Medium',
-                subtitle: 'தமிழ் மொழி வினாக்கள் மற்றும் பாடங்கள்',
-                icon: Icons.g_translate_rounded,
-                gradientColors: const [Color(0xFFEC4899), Color(0xFFF472B6)],
-                onTap: () => onMediumSelected('Tamil'),
-              ),
-              const SizedBox(height: 8),
+              Pill(label: Grades.label(grade), color: AppColors.cyan),
             ],
           ),
-        ),
+          const SizedBox(height: 22),
+          _MediumOptionTile(
+            title: 'English Medium',
+            subtitle: 'English language subjects & quizzes',
+            icon: Icons.language_rounded,
+            color: AppColors.primary,
+            onTap: () => onMediumSelected('English'),
+          ),
+          const SizedBox(height: 12),
+          _MediumOptionTile(
+            title: 'Sinhala Medium',
+            subtitle: 'සිංහල මාධ්‍යය ප්‍රශ්න පත්‍ර සහ පාඩම්',
+            icon: Icons.translate_rounded,
+            color: AppColors.violet,
+            onTap: () => onMediumSelected('Sinhala'),
+          ),
+          const SizedBox(height: 12),
+          _MediumOptionTile(
+            title: 'Tamil Medium',
+            subtitle: 'தமிழ் மொழி வினாக்கள் மற்றும் பாடங்கள்',
+            icon: Icons.g_translate_rounded,
+            color: AppColors.pink,
+            onTap: () => onMediumSelected('Tamil'),
+          ),
+          const SizedBox(height: 8),
+        ],
       ),
     );
   }
@@ -448,104 +472,46 @@ class _MediumOptionTile extends StatelessWidget {
   final String title;
   final String subtitle;
   final IconData icon;
-  final List<Color> gradientColors;
+  final Color color;
   final VoidCallback onTap;
 
   const _MediumOptionTile({
     required this.title,
     required this.subtitle,
     required this.icon,
-    required this.gradientColors,
+    required this.color,
     required this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(20),
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          onTap: onTap,
-          child: Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.03),
-              borderRadius: BorderRadius.circular(20),
-              border: Border.all(
-                color: Colors.white.withValues(alpha: 0.06),
-                width: 1.2,
-              ),
-            ),
-            child: Row(
+    return GlassCard(
+      onTap: onTap,
+      radius: AppRadius.md + 2,
+      padding: const EdgeInsets.all(14),
+      child: Row(
+        children: [
+          IconBadge(icon: icon, color: color, size: 48),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Container(
-                  width: 48,
-                  height: 48,
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      colors: gradientColors,
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                    ),
-                    borderRadius: BorderRadius.circular(14),
-                    boxShadow: [
-                      BoxShadow(
-                        color: gradientColors[0].withValues(alpha: 0.25),
-                        blurRadius: 10,
-                        offset: const Offset(0, 4),
-                      ),
-                    ],
-                  ),
-                  child: Icon(
-                    icon,
-                    color: Colors.white,
-                    size: 22,
-                  ),
-                ),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        title,
-                        style: GoogleFonts.inter(
-                          fontSize: 15,
-                          fontWeight: FontWeight.w700,
-                          color: Colors.white,
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        subtitle,
-                        style: GoogleFonts.inter(
-                          fontSize: 11,
-                          fontWeight: FontWeight.w500,
-                          color: Colors.white38,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                Container(
-                  padding: const EdgeInsets.all(6),
-                  decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.03),
-                    shape: BoxShape.circle,
-                  ),
-                  child: const Icon(
-                    Icons.chevron_right_rounded,
-                    color: Colors.white24,
-                    size: 20,
-                  ),
+                Text(title, style: AppText.style(size: 15, weight: FontWeight.w700)),
+                const SizedBox(height: 3),
+                Text(
+                  subtitle,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: AppText.style(size: 12, color: AppColors.textMuted),
                 ),
               ],
             ),
           ),
-        ),
+          const SizedBox(width: 8),
+          Icon(Icons.chevron_right_rounded, color: AppColors.textMuted),
+        ],
       ),
     );
   }
 }
-

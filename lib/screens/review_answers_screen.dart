@@ -1,8 +1,9 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 import '../models/quiz_models.dart';
+import '../theme/app_theme.dart';
 import '../widgets/formatted_text.dart';
+import '../widgets/glass_ui.dart';
 
 class ReviewAnswersScreen extends StatelessWidget {
   const ReviewAnswersScreen({super.key});
@@ -13,74 +14,90 @@ class ReviewAnswersScreen extends StatelessWidget {
     final questions = args?['questions'] as List<Question>? ?? [];
     final userAnswers = args?['userAnswers'] as List<int>? ?? [];
 
+    int correct = 0;
+    int timedOut = 0;
+    for (int i = 0; i < questions.length; i++) {
+      final a = userAnswers.length > i ? userAnswers[i] : -1;
+      if (a == questions[i].correctIndex) correct++;
+      if (a == -1) timedOut++;
+    }
+
     return Scaffold(
       extendBodyBehindAppBar: true,
-      appBar: AppBar(
-        elevation: 0,
-        backgroundColor: Colors.transparent,
-        leading: IconButton(
-          icon: const Icon(Icons.close, color: Colors.white),
-          onPressed: () => Navigator.pop(context, 'exit'),
-        ),
-        title: Text(
-          'Review Answers',
-          style: GoogleFonts.inter(
-            fontWeight: FontWeight.w800,
-            fontSize: 18,
-            color: Colors.white,
-            letterSpacing: -0.5,
+      appBar: glassAppBar(
+        context,
+        title: 'Review answers',
+        leading: Padding(
+          padding: const EdgeInsets.only(left: 16),
+          child: GlassBackButton(
+            icon: Icons.close_rounded,
+            onTap: () => Navigator.pop(context, 'exit'),
           ),
         ),
-        centerTitle: true,
       ),
-      body: Stack(
-        children: [
-          _buildBackground(),
-          questions.isEmpty
-              ? _buildEmptyState()
-              : ListView.builder(
-                  padding: const EdgeInsets.fromLTRB(16, 100, 16, 120),
-                  itemCount: questions.length,
-                  itemBuilder: (context, index) {
-                    final question = questions[index];
-                    final userAnswer =
-                        userAnswers.length > index ? userAnswers[index] : null;
+      body: AuroraBackground(
+        child: Stack(
+          children: [
+            questions.isEmpty
+                ? const EmptyState(icon: Icons.fact_check_outlined, title: 'No answers to review.')
+                : ListView.builder(
+                    padding: EdgeInsets.fromLTRB(
+                      20,
+                      MediaQuery.of(context).padding.top + kToolbarHeight + 12,
+                      20,
+                      140,
+                    ),
+                    itemCount: questions.length + 1,
+                    itemBuilder: (context, index) {
+                      if (index == 0) {
+                        return Padding(
+                          padding: const EdgeInsets.only(bottom: 20),
+                          child: _buildSummary(correct, questions.length - correct - timedOut, timedOut),
+                        );
+                      }
+                      final i = index - 1;
+                      final question = questions[i];
+                      final userAnswer = userAnswers.length > i ? userAnswers[i] : null;
 
-                    return Padding(
-                      padding: const EdgeInsets.only(bottom: 20),
-                      child: _buildQuestionCard(
-                          context, index + 1, question, userAnswer),
-                    );
-                  },
-                ),
-          _buildBottomBar(context),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildBackground() {
-    return Container(
-      decoration: const BoxDecoration(
-        color: Color(0xFF0F172A),
-        gradient: RadialGradient(
-          center: Alignment(0.7, -0.6),
-          radius: 1.5,
-          colors: [
-            Color(0xFF1E3A8A),
-            Color(0xFF0F172A),
+                      return Padding(
+                        padding: const EdgeInsets.only(bottom: 16),
+                        child: FadeSlideIn(
+                          index: i,
+                          child: _buildQuestionCard(context, i + 1, question, userAnswer),
+                        ),
+                      );
+                    },
+                  ),
+            _buildBottomBar(context),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildEmptyState() {
-    return Center(
-      child: Text(
-        'No answers to review.',
-        style: GoogleFonts.inter(color: Colors.white30, fontWeight: FontWeight.w600),
-      ),
+  Widget _buildSummary(int correct, int wrong, int timedOut) {
+    Widget stat(String label, int value, Color color, IconData icon) => Expanded(
+          child: GlassCard(
+            padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 12),
+            child: Column(
+              children: [
+                Icon(icon, color: color, size: 22),
+                const SizedBox(height: 8),
+                Text('$value', style: AppText.style(size: 22, weight: FontWeight.w800)),
+                Text(label, style: AppText.style(size: 11, weight: FontWeight.w700, color: AppColors.textMuted)),
+              ],
+            ),
+          ),
+        );
+
+    return Row(
+      children: [
+        stat('Correct', correct, AppColors.success, Icons.check_circle_rounded),
+        const SizedBox(width: 10),
+        stat('Wrong', wrong, AppColors.danger, Icons.cancel_rounded),
+        const SizedBox(width: 10),
+        stat('Timed out', timedOut, AppColors.warning, Icons.timer_off_rounded),
+      ],
     );
   }
 
@@ -93,27 +110,26 @@ class ReviewAnswersScreen extends StatelessWidget {
         child: BackdropFilter(
           filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
           child: Container(
-            padding: const EdgeInsets.fromLTRB(24, 20, 24, 40),
+            padding: EdgeInsets.fromLTRB(20, 16, 20, 16 + MediaQuery.of(context).padding.bottom),
             decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.03),
-              border: Border(
-                top: BorderSide(color: Colors.white.withValues(alpha: 0.08)),
-              ),
+              color: AppColors.bg.withValues(alpha: 0.6),
+              border: Border(top: BorderSide(color: AppColors.glassStroke)),
             ),
             child: Row(
               children: [
                 Expanded(
-                  child: _buildButton(
-                    onPressed: () => Navigator.pop(context, 'exit'),
+                  child: GlassButton(
                     label: 'Exit',
-                    isSecondary: true,
+                    icon: Icons.home_rounded,
+                    onPressed: () => Navigator.pop(context, 'exit'),
                   ),
                 ),
-                const SizedBox(width: 16),
+                const SizedBox(width: 12),
                 Expanded(
-                  child: _buildButton(
+                  child: GradientButton(
+                    label: 'Try again',
+                    icon: Icons.replay_rounded,
                     onPressed: () => Navigator.pop(context, 'restart'),
-                    label: 'Try Again',
                   ),
                 ),
               ],
@@ -124,330 +140,205 @@ class ReviewAnswersScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildButton({
-    required VoidCallback onPressed,
-    required String label,
-    bool isSecondary = false,
-  }) {
-    return Container(
-      height: 56,
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(16),
-        gradient: isSecondary
-            ? null
-            : const LinearGradient(
-                colors: [Color(0xFF2563EB), Color(0xFF3B82F6)],
-              ),
-        color: isSecondary ? Colors.white.withValues(alpha: 0.05) : null,
-        border: isSecondary ? Border.all(color: Colors.white.withValues(alpha: 0.1)) : null,
-        boxShadow: [
-          if (!isSecondary)
-            BoxShadow(
-              color: const Color(0xFF2563EB).withValues(alpha: 0.3),
-              blurRadius: 12,
-              offset: const Offset(0, 4),
-            ),
-        ],
-      ),
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          onTap: onPressed,
-          borderRadius: BorderRadius.circular(16),
-          child: Center(
-            child: Text(
-              label,
-              style: GoogleFonts.inter(
-                color: isSecondary ? Colors.white70 : Colors.white,
-                fontWeight: FontWeight.w800,
-                fontSize: 15,
-                letterSpacing: 0.5,
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
+  Widget _buildQuestionCard(BuildContext context, int index, Question question, int? userAnswer) {
+    final isCorrectAnswer = userAnswer == question.correctIndex;
+    final statusColor = userAnswer == -1
+        ? AppColors.warning
+        : isCorrectAnswer
+            ? AppColors.success
+            : AppColors.danger;
 
-  Widget _buildQuestionCard(
-      BuildContext context, int index, Question question, int? userAnswer) {
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(24),
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-        child: Container(
-          padding: const EdgeInsets.all(20),
-          decoration: BoxDecoration(
-            color: Colors.white.withValues(alpha: 0.03),
-            borderRadius: BorderRadius.circular(24),
-            border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+    return GlassCard(
+      padding: const EdgeInsets.all(18),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
             children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF3B82F6).withValues(alpha: 0.1),
-                      borderRadius: BorderRadius.circular(10),
-                      border:
-                          Border.all(color: const Color(0xFF3B82F6).withValues(alpha: 0.3)),
-                    ),
-                    child: Text(
-                      'QUESTION $index',
-                      style: GoogleFonts.inter(
-                        color: const Color(0xFF60A5FA),
-                        fontSize: 10,
-                        fontWeight: FontWeight.w900,
-                        letterSpacing: 1,
-                      ),
-                    ),
-                  ),
-                  if (userAnswer != null)
-                    Container(
-                      padding: const EdgeInsets.all(4),
-                      decoration: BoxDecoration(
-                        color: (userAnswer == question.correctIndex
-                                ? const Color(0xFF10B981)
-                                : const Color(0xFFEF4444))
-                            .withValues(alpha: 0.1),
-                        shape: BoxShape.circle,
-                      ),
-                      child: Icon(
-                        userAnswer == question.correctIndex
-                            ? Icons.check_rounded
-                            : Icons.close_rounded,
-                        color: userAnswer == question.correctIndex
-                            ? const Color(0xFF10B981)
-                            : const Color(0xFFEF4444),
-                        size: 16,
-                      ),
-                    ),
-                ],
-              ),
-              const SizedBox(height: 20),
-              // Scenario (if any)
-              if ((question.scenarioText != null &&
-                      question.scenarioText!.isNotEmpty) ||
-                  (question.scenarioImageUrl != null &&
-                      question.scenarioImageUrl!.isNotEmpty)) ...[
-                Container(
-                  padding: const EdgeInsets.all(16),
-                  margin: const EdgeInsets.only(bottom: 20),
-                  decoration: BoxDecoration(
-                    color: Colors.black.withValues(alpha: 0.2),
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'SCENARIO',
-                        style: GoogleFonts.inter(
-                          fontSize: 9,
-                          fontWeight: FontWeight.w900,
-                          color: Colors.white30,
-                          letterSpacing: 1.5,
-                        ),
-                      ),
-                      if (question.scenarioText != null &&
-                          question.scenarioText!.isNotEmpty) ...[
-                        const SizedBox(height: 12),
-                        FormattedText(
-                          question.scenarioText!,
-                          style: GoogleFonts.inter(
-                            fontSize: 14,
-                            color: Colors.white70,
-                            height: 1.6,
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                      ],
-                      if (question.scenarioImageUrl != null &&
-                          question.scenarioImageUrl!.isNotEmpty) ...[
-                        const SizedBox(height: 12),
-                        ClipRRect(
-                          borderRadius: BorderRadius.circular(12),
-                          child: Image.network(
-                            question.scenarioImageUrl!,
-                            fit: BoxFit.contain,
-                            errorBuilder: (context, error, stackTrace) =>
-                                const SizedBox(),
-                          ),
-                        ),
-                      ],
-                    ],
-                  ),
+              Pill(label: 'Question $index', color: AppColors.primary),
+              const Spacer(),
+              if (userAnswer != null)
+                Pill(
+                  label: userAnswer == -1
+                      ? 'Timed out'
+                      : isCorrectAnswer
+                          ? 'Correct'
+                          : 'Wrong',
+                  color: statusColor,
+                  icon: userAnswer == -1
+                      ? Icons.timer_off_outlined
+                      : isCorrectAnswer
+                          ? Icons.check_rounded
+                          : Icons.close_rounded,
                 ),
-              ],
-              FormattedText(
-                question.text,
-                style: GoogleFonts.inter(
-                  fontSize: 17,
-                  fontWeight: FontWeight.w700,
-                  color: Colors.white,
-                  height: 1.4,
-                  letterSpacing: -0.3,
-                ),
-              ),
-              if (userAnswer == -1) ...[
-                const SizedBox(height: 12),
-                Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFEF4444).withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(
-                        color: const Color(0xFFEF4444).withValues(alpha: 0.3)),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Icon(Icons.timer_off_outlined,
-                          color: Color(0xFFEF4444), size: 14),
-                      const SizedBox(width: 4),
-                      Text(
-                        'Timed Out',
-                        style: GoogleFonts.inter(
-                          color: const Color(0xFFEF4444),
-                          fontSize: 11,
-                          fontWeight: FontWeight.w800,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-              if (question.imageUrl != null && question.imageUrl!.isNotEmpty) ...[
-                const SizedBox(height: 20),
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(16),
-                  child: Image.network(
-                    question.imageUrl!,
-                    fit: BoxFit.contain,
-                    width: double.infinity,
-                    errorBuilder: (context, error, stackTrace) =>
-                        const SizedBox(),
-                  ),
-                ),
-              ],
-              const SizedBox(height: 24),
-              ...List.generate(question.options.length, (i) {
-                final isCorrect = i == question.correctIndex;
-                final isUserSelected = i == userAnswer;
-                final label = ['A', 'B', 'C', 'D', 'E', 'F'][i];
-
-                Color glassColor = Colors.white.withValues(alpha: 0.02);
-                Color borderColor = Colors.white.withValues(alpha: 0.05);
-                Color textColor = Colors.white60;
-                IconData? icon;
-                Color iconColor = Colors.transparent;
-
-                if (isCorrect) {
-                  glassColor = const Color(0xFF10B981).withValues(alpha: 0.1);
-                  borderColor = const Color(0xFF10B981).withValues(alpha: 0.4);
-                  textColor = const Color(0xFF10B981);
-                  icon = Icons.check_circle_rounded;
-                  iconColor = const Color(0xFF10B981);
-                } else if (isUserSelected && !isCorrect) {
-                  glassColor = const Color(0xFFEF4444).withValues(alpha: 0.1);
-                  borderColor = const Color(0xFFEF4444).withValues(alpha: 0.4);
-                  textColor = const Color(0xFFEF4444);
-                  icon = Icons.cancel_rounded;
-                  iconColor = const Color(0xFFEF4444);
-                }
-
-                final hasOptionImage = question.optionImages != null &&
-                    question.optionImages!.length > i &&
-                    question.optionImages![i].isNotEmpty;
-
-                return Padding(
-                  padding: const EdgeInsets.only(bottom: 10),
-                  child: Container(
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: glassColor,
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(color: borderColor),
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          children: [
-                            Container(
-                              width: 24,
-                              height: 24,
-                              decoration: BoxDecoration(
-                                color: (isCorrect || isUserSelected)
-                                    ? textColor.withValues(alpha: 0.1)
-                                    : Colors.white.withValues(alpha: 0.05),
-                                borderRadius: BorderRadius.circular(6),
-                              ),
-                              child: Center(
-                                child: Text(
-                                  label,
-                                  style: GoogleFonts.inter(
-                                    fontWeight: FontWeight.w900,
-                                    fontSize: 12,
-                                    color: (isCorrect || isUserSelected)
-                                        ? textColor
-                                        : Colors.white30,
-                                  ),
-                                ),
-                              ),
-                            ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: FormattedText(
-                                question.options[i],
-                                style: GoogleFonts.inter(
-                                  color: (isCorrect || isUserSelected)
-                                      ? Colors.white
-                                      : Colors.white70,
-                                  fontSize: 14,
-                                  fontWeight: (isCorrect || isUserSelected)
-                                      ? FontWeight.w600
-                                      : FontWeight.w400,
-                                ),
-                              ),
-                            ),
-                            if (icon != null) ...[
-                              const SizedBox(width: 8),
-                              Icon(icon, color: iconColor, size: 18),
-                            ],
-                          ],
-                        ),
-                        if (hasOptionImage) ...[
-                          const SizedBox(height: 12),
-                          ClipRRect(
-                            borderRadius: BorderRadius.circular(10),
-                            child: Image.network(
-                              question.optionImages![i],
-                              height: 100,
-                              fit: BoxFit.contain,
-                              errorBuilder: (context, error, stackTrace) =>
-                                  const SizedBox(),
-                            ),
-                          ),
-                        ],
-                      ],
-                    ),
-                  ),
-                );
-              }),
             ],
           ),
-        ),
+          const SizedBox(height: 16),
+          if ((question.scenarioText != null && question.scenarioText!.isNotEmpty) ||
+              (question.scenarioImageUrl != null && question.scenarioImageUrl!.isNotEmpty)) ...[
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(14),
+              margin: const EdgeInsets.only(bottom: 16),
+              decoration: BoxDecoration(
+                color: Colors.black.withValues(alpha: 0.2),
+                borderRadius: BorderRadius.circular(AppRadius.md),
+                border: Border.all(color: AppColors.glassStrokeSoft),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const SectionLabel('Scenario', color: AppColors.cyan),
+                  if (question.scenarioText != null && question.scenarioText!.isNotEmpty) ...[
+                    const SizedBox(height: 10),
+                    FormattedText(
+                      question.scenarioText!,
+                      style: AppText.style(size: 14, color: AppColors.textSecondary, height: 1.6),
+                    ),
+                  ],
+                  if (question.scenarioImageUrl != null && question.scenarioImageUrl!.isNotEmpty) ...[
+                    const SizedBox(height: 12),
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(AppRadius.sm),
+                      child: Image.network(
+                        question.scenarioImageUrl!,
+                        fit: BoxFit.contain,
+                        errorBuilder: (context, error, stackTrace) => const SizedBox(),
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ],
+          FormattedText(
+            question.text,
+            style: AppText.style(size: 16.5, weight: FontWeight.w700, height: 1.45, spacing: -0.2),
+          ),
+          if (question.imageUrl != null && question.imageUrl!.isNotEmpty) ...[
+            const SizedBox(height: 16),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(AppRadius.md),
+              child: Image.network(
+                question.imageUrl!,
+                fit: BoxFit.contain,
+                width: double.infinity,
+                errorBuilder: (context, error, stackTrace) => const SizedBox(),
+              ),
+            ),
+          ],
+          const SizedBox(height: 18),
+          ...List.generate(question.options.length, (i) {
+            final isCorrect = i == question.correctIndex;
+            final isUserSelected = i == userAnswer;
+            return _ReviewOption(
+              label: String.fromCharCode(65 + i),
+              text: question.options[i],
+              imageUrl: question.optionImages != null &&
+                      question.optionImages!.length > i &&
+                      question.optionImages![i].isNotEmpty
+                  ? question.optionImages![i]
+                  : null,
+              state: isCorrect
+                  ? _OptionState.correct
+                  : isUserSelected
+                      ? _OptionState.wrong
+                      : _OptionState.neutral,
+            );
+          }),
+        ],
       ),
     );
   }
 }
 
+enum _OptionState { neutral, correct, wrong }
+
+class _ReviewOption extends StatelessWidget {
+  final String label;
+  final String text;
+  final String? imageUrl;
+  final _OptionState state;
+
+  const _ReviewOption({required this.label, required this.text, required this.state, this.imageUrl});
+
+  @override
+  Widget build(BuildContext context) {
+    final color = switch (state) {
+      _OptionState.correct => AppColors.success,
+      _OptionState.wrong => AppColors.danger,
+      _OptionState.neutral => null,
+    };
+    final highlighted = color != null;
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: highlighted ? color.withValues(alpha: 0.12) : Colors.white.withValues(alpha: 0.025),
+          borderRadius: BorderRadius.circular(AppRadius.sm + 2),
+          border: Border.all(color: highlighted ? color.withValues(alpha: 0.5) : AppColors.glassStrokeSoft),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Container(
+                  width: 26,
+                  height: 26,
+                  decoration: BoxDecoration(
+                    color: highlighted ? color.withValues(alpha: 0.2) : Colors.white.withValues(alpha: 0.06),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Center(
+                    child: Text(
+                      label,
+                      style: AppText.style(
+                        size: 12,
+                        weight: FontWeight.w800,
+                        color: highlighted ? color : AppColors.textMuted,
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: FormattedText(
+                    text,
+                    style: AppText.style(
+                      size: 14,
+                      weight: highlighted ? FontWeight.w600 : FontWeight.w400,
+                      color: highlighted ? Colors.white : AppColors.textSecondary,
+                    ),
+                  ),
+                ),
+                if (highlighted) ...[
+                  const SizedBox(width: 8),
+                  Icon(
+                    state == _OptionState.correct ? Icons.check_circle_rounded : Icons.cancel_rounded,
+                    color: color,
+                    size: 18,
+                  ),
+                ],
+              ],
+            ),
+            if (imageUrl != null) ...[
+              const SizedBox(height: 10),
+              ClipRRect(
+                borderRadius: BorderRadius.circular(10),
+                child: Image.network(
+                  imageUrl!,
+                  height: 100,
+                  fit: BoxFit.contain,
+                  errorBuilder: (context, error, stackTrace) => const SizedBox(),
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}

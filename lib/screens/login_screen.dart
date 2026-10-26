@@ -1,13 +1,16 @@
-import 'dart:ui';
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/foundation.dart';
 
 import '../services/firestore_service.dart';
+import '../services/app_open_ad_manager.dart';
 import '../state/app_state.dart';
+import '../services/subscription_service.dart';
+import '../theme/app_theme.dart';
+import '../widgets/glass_ui.dart';
+import '../services/analytics_service.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -49,6 +52,11 @@ class _LoginScreenState extends State<LoginScreen> {
         }
         AppState.currentUsername = username;
         AppState.currentUid = user.uid;
+        await SubscriptionService.instance.identify(user.uid);
+        await AnalyticsService.instance.setUser(user.uid);
+        profile == null
+            ? await AnalyticsService.instance.logSignUp('google')
+            : await AnalyticsService.instance.logLogin('google');
 
         if (mounted) {
           Navigator.pushReplacementNamed(context, '/grade');
@@ -104,6 +112,9 @@ class _LoginScreenState extends State<LoginScreen> {
         AppState.currentUsername = username;
         AppState.currentUid = uid;
       }
+      await SubscriptionService.instance.identify(uid);
+      await AnalyticsService.instance.setUser(uid);
+      await AnalyticsService.instance.logLogin('email');
 
       if (mounted) {
         Navigator.pushReplacementNamed(context, '/grade');
@@ -163,6 +174,9 @@ class _LoginScreenState extends State<LoginScreen> {
           return;
         }
       } else {
+        // The account chooser briefly backgrounds the app; don't let that
+        // resume trigger an app-open ad on top of it.
+        AppOpenAdManager.instance.suppressNextShow = true;
         final GoogleSignIn googleSignIn = GoogleSignIn.instance;
         final GoogleSignInAccount googleUser = await googleSignIn.authenticate();
 
@@ -176,25 +190,7 @@ class _LoginScreenState extends State<LoginScreen> {
       }
 
       final User? user = userCredential.user;
-
-      if (user != null) {
-        final db = FirestoreService();
-        final username = user.displayName ?? user.email?.split('@')[0] ?? 'GoogleUser';
-        
-        var profile = await db.getUserProfileByUid(user.uid);
-        if (profile == null) {
-          await db.createUserProfile(username, email: user.email, uid: user.uid, photoUrl: user.photoURL);
-        } else if (user.photoURL != null && profile.photoUrl != user.photoURL) {
-          // Update photo if it changed or was missing
-          await db.updateUserProfilePhoto(user.uid, user.photoURL!);
-        }
-        AppState.currentUsername = username;
-        AppState.currentUid = user.uid;
-
-        if (mounted) {
-          Navigator.pushReplacementNamed(context, '/grade');
-        }
-      }
+      if (user != null) await _completeSocialSignIn(user);
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -208,6 +204,67 @@ class _LoginScreenState extends State<LoginScreen> {
     }
   }
 
+  Future<void> _handleAppleSignIn() async {
+    setState(() => _isLoading = true);
+    try {
+      AppOpenAdManager.instance.suppressNextShow = true;
+      final provider = AppleAuthProvider()
+        ..addScope('email')
+        ..addScope('name');
+      final userCredential = await FirebaseAuth.instance.signInWithProvider(provider);
+      final User? user = userCredential.user;
+      if (user != null) await _completeSocialSignIn(user, fallbackName: 'Student');
+    } on FirebaseAuthException catch (e) {
+      // User closed the Apple sheet.
+      if (e.code == 'canceled' || e.code == 'web-context-canceled') return;
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Apple Sign-In Error: ${e.message ?? e.code}')),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Apple Sign-In Error: $e')),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
+    }
+  }
+
+  /// Creates/updates the Firestore profile after Google or Apple sign-in
+  /// and opens the app.
+  Future<void> _completeSocialSignIn(User user, {String fallbackName = 'GoogleUser'}) async {
+    final db = FirestoreService();
+    final displayName = user.displayName?.trim();
+    final username = (displayName != null && displayName.isNotEmpty)
+        ? displayName
+        : user.email?.split('@')[0] ?? fallbackName;
+
+    var profile = await db.getUserProfileByUid(user.uid);
+    if (profile == null) {
+      await db.createUserProfile(username, email: user.email, uid: user.uid, photoUrl: user.photoURL);
+    } else if (user.photoURL != null && profile.photoUrl != user.photoURL) {
+      // Update photo if it changed or was missing
+      await db.updateUserProfilePhoto(user.uid, user.photoURL!);
+    }
+    AppState.currentUsername = username;
+    AppState.currentUid = user.uid;
+    await SubscriptionService.instance.identify(user.uid);
+    final method = user.providerData.isNotEmpty ? user.providerData.first.providerId : 'social';
+    await AnalyticsService.instance.setUser(user.uid);
+    profile == null
+        ? await AnalyticsService.instance.logSignUp(method)
+        : await AnalyticsService.instance.logLogin(method);
+
+    if (mounted) {
+      Navigator.pushReplacementNamed(context, '/grade');
+    }
+  }
+
   @override
   void dispose() {
     _emailController.dispose();
@@ -218,194 +275,162 @@ class _LoginScreenState extends State<LoginScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      extendBodyBehindAppBar: true,
-      appBar: AppBar(
-        elevation: 0,
-        backgroundColor: Colors.transparent,
-        leading: const BackButton(color: Colors.white),
-      ),
-      body: Stack(
-        children: [
-          _buildBackground(),
-          SafeArea(
-            child: Center(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.symmetric(horizontal: 24),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    const SizedBox(height: 20),
-                    _buildLogo(),
-                    const SizedBox(height: 16),
-                    _buildBrandNameAndVersion(),
-                    const SizedBox(height: 24),
-                    _buildGlassCard(),
-                    const SizedBox(height: 32),
-                    _buildFooter(),
-                    const SizedBox(height: 20),
-                  ],
-                ),
+      body: AuroraBackground(
+        child: SafeArea(
+          child: Center(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
+              child: Column(
+                children: [
+                  FadeSlideIn(index: 0, child: _buildBrand()),
+                  const SizedBox(height: 32),
+                  FadeSlideIn(index: 1, child: _buildGlassCard()),
+                  const SizedBox(height: 28),
+                  FadeSlideIn(index: 2, child: _buildFooter()),
+                ],
               ),
             ),
           ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildBackground() {
-    return Container(
-      decoration: const BoxDecoration(
-        color: Color(0xFF0F172A),
-        gradient: RadialGradient(
-          center: Alignment(0.7, -0.6),
-          radius: 1.5,
-          colors: [
-            Color(0xFF1E3A8A), // Deep Blue
-            Color(0xFF0F172A), // Slate Dark
-          ],
         ),
       ),
     );
   }
 
-  Widget _buildBrandNameAndVersion() {
+  Widget _buildBrand() {
     return Column(
-      mainAxisAlignment: MainAxisAlignment.center,
-      crossAxisAlignment: CrossAxisAlignment.end,
       children: [
-        Text(
-          'QuizMaster',
-          style: GoogleFonts.inter(
-            fontSize: 28,
-            fontWeight: FontWeight.w900,
-            color: Colors.white,
-            letterSpacing: -1,
+        Hero(
+          tag: 'logo',
+          child: Container(
+            width: 104,
+            height: 104,
+            padding: const EdgeInsets.all(3),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(32),
+              gradient: AppGradients.progress,
+              boxShadow: [
+                BoxShadow(
+                  color: AppColors.primary.withValues(alpha: 0.55),
+                  blurRadius: 48,
+                  spreadRadius: -4,
+                ),
+              ],
+            ),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(29),
+              child: Image.asset('assets/images/logo.jpeg', fit: BoxFit.cover),
+            ),
           ),
         ),
-        const SizedBox(height: 4),
-        Text(
-          'v1.2.1',
-          style: GoogleFonts.inter(
-            fontSize: 12,
-            fontWeight: FontWeight.w600,
-            color: Colors.white38,
-            letterSpacing: 0.5,
-          ),
+        const SizedBox(height: 20),
+        Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text('QuizMaster', style: AppText.style(size: 30, weight: FontWeight.w800, spacing: -1)),
+            const SizedBox(width: 10),
+            const Pill(label: 'v1.2.5', color: AppColors.cyan, uppercase: false),
+          ],
         ),
       ],
     );
   }
 
-  Widget _buildLogo() {
-    return Hero(
-      tag: 'logo',
-      child: Container(
-        width: 120,
-        height: 120,
-        decoration: BoxDecoration(
-          shape: BoxShape.circle,
-          boxShadow: [
-            BoxShadow(
-              color: const Color(0xFF2563EB).withValues(alpha: 0.4),
-              blurRadius: 40,
-              spreadRadius: 10,
-            ),
-          ],
-        ),
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(60),
-          child: Image.asset(
-            'assets/images/logo.jpeg',
-            fit: BoxFit.cover,
+  Widget _buildGlassCard() {
+    return GlassCard(
+      blur: true,
+      radius: AppRadius.xl,
+      padding: const EdgeInsets.fromLTRB(24, 28, 24, 24),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('Welcome back 👋', style: AppText.style(size: 24, weight: FontWeight.w800, spacing: -0.5)),
+          const SizedBox(height: 6),
+          Text('Access your personalized question bank', style: AppText.body()),
+          const SizedBox(height: 28),
+          _buildInputField(
+            label: 'Email',
+            controller: _emailController,
+            hint: 'name@example.com',
+            icon: Icons.alternate_email_rounded,
+            keyboardType: TextInputType.emailAddress,
           ),
-        ),
+          const SizedBox(height: 18),
+          _buildInputField(
+            label: 'Password',
+            controller: _passwordController,
+            hint: '••••••••',
+            icon: Icons.lock_outline_rounded,
+            isPassword: true,
+            obscureText: _obscurePassword,
+            onToggleVisibility: () => setState(() => _obscurePassword = !_obscurePassword),
+          ),
+          const SizedBox(height: 10),
+          Align(
+            alignment: Alignment.centerRight,
+            child: TextButton(
+              onPressed: _handleForgotPassword,
+              style: TextButton.styleFrom(
+                padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+                minimumSize: Size.zero,
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              ),
+              child: Text(
+                'Forgot password?',
+                style: AppText.style(size: 13, weight: FontWeight.w600, color: AppColors.primaryLight),
+              ),
+            ),
+          ),
+          const SizedBox(height: 24),
+          GradientButton(
+            label: 'Log in',
+            icon: Icons.arrow_forward_rounded,
+            loading: _isLoading,
+            onPressed: _isLoading ? null : _handleLogin,
+          ),
+          const SizedBox(height: 24),
+          _buildDivider(),
+          const SizedBox(height: 24),
+          GlassButton(
+            label: 'Continue with Google',
+            onPressed: _isLoading ? null : _handleGoogleSignIn,
+            leading: Container(
+              padding: const EdgeInsets.all(6),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Image.asset('assets/images/google_logo.png', height: 18, width: 18),
+            ),
+          ),
+          if (_showAppleSignIn) ...[
+            const SizedBox(height: 12),
+            _buildAppleButton(),
+          ],
+        ],
       ),
     );
   }
 
-  Widget _buildGlassCard() {
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(28),
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 16.0, sigmaY: 16.0),
-        child: Container(
-          padding: const EdgeInsets.all(32),
-          decoration: BoxDecoration(
-            color: Colors.white.withValues(alpha: 0.05),
-            borderRadius: BorderRadius.circular(28),
-            border: Border.all(
-              color: Colors.white.withValues(alpha: 0.1),
-              width: 1.5,
-            ),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Welcome Back',
-                style: GoogleFonts.inter(
-                  fontSize: 24,
-                  fontWeight: FontWeight.w800,
-                  color: Colors.white,
-                  letterSpacing: -0.5,
-                ),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                'Access your personalized question bank',
-                style: GoogleFonts.inter(
-                  fontSize: 14,
-                  color: Colors.white60,
-                ),
-              ),
-              const SizedBox(height: 32),
-              _buildInputField(
-                label: 'Email',
-                controller: _emailController,
-                hint: 'name@example.com',
-                icon: Icons.alternate_email_rounded,
-                keyboardType: TextInputType.emailAddress,
-              ),
-              const SizedBox(height: 20),
-              _buildInputField(
-                label: 'Password',
-                controller: _passwordController,
-                hint: '••••••••',
-                icon: Icons.lock_outline_rounded,
-                isPassword: true,
-                obscureText: _obscurePassword,
-                onToggleVisibility: () =>
-                    setState(() => _obscurePassword = !_obscurePassword),
-              ),
-              const SizedBox(height: 12),
-              Align(
-                alignment: Alignment.centerRight,
-                child: TextButton(
-                  onPressed: _handleForgotPassword,
-                  style: TextButton.styleFrom(
-                    padding: EdgeInsets.zero,
-                    minimumSize: const Size(0, 0),
-                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                  ),
-                  child: Text(
-                    'Forgot Password?',
-                    style: GoogleFonts.inter(
-                      color: const Color(0xFF60A5FA),
-                      fontWeight: FontWeight.w500,
-                      fontSize: 13,
-                    ),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 32),
-              _buildLoginButton(),
-              const SizedBox(height: 24),
-              _buildDivider(),
-              const SizedBox(height: 24),
-              _buildGoogleButton(),
-            ],
-          ),
+  bool get _showAppleSignIn => !kIsWeb && defaultTargetPlatform == TargetPlatform.iOS;
+
+  /// Follows Apple's button guidelines: white background, black Apple logo.
+  Widget _buildAppleButton() {
+    return SizedBox(
+      width: double.infinity,
+      height: 52,
+      child: ElevatedButton.icon(
+        onPressed: _isLoading ? null : _handleAppleSignIn,
+        icon: const Icon(Icons.apple, size: 24),
+        label: Text(
+          'Sign in with Apple',
+          style: AppText.style(size: 15, weight: FontWeight.w600, color: Colors.black),
+        ),
+        style: ElevatedButton.styleFrom(
+          backgroundColor: Colors.white,
+          foregroundColor: Colors.black,
+          disabledBackgroundColor: Colors.white70,
+          elevation: 0,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadius.md)),
         ),
       ),
     );
@@ -424,197 +449,61 @@ class _LoginScreenState extends State<LoginScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          label,
-          style: GoogleFonts.inter(
-            fontWeight: FontWeight.w600,
-            fontSize: 14,
-            color: Colors.white70,
-          ),
-        ),
-        const SizedBox(height: 10),
+        Text(label, style: AppText.style(size: 13, weight: FontWeight.w600, color: AppColors.textSecondary)),
+        const SizedBox(height: 8),
         TextField(
           controller: controller,
           obscureText: obscureText,
           keyboardType: keyboardType,
-          style: const TextStyle(color: Colors.white, fontSize: 15),
+          style: AppText.style(size: 15, weight: FontWeight.w500),
           decoration: InputDecoration(
             hintText: hint,
-            hintStyle: GoogleFonts.inter(color: Colors.white24),
-            prefixIcon: Icon(icon, color: Colors.white30, size: 20),
+            prefixIcon: Icon(icon, size: 20),
             suffixIcon: isPassword
                 ? IconButton(
                     icon: Icon(
-                      obscureText
-                          ? Icons.visibility_off_rounded
-                          : Icons.visibility_rounded,
-                      color: Colors.white30,
+                      obscureText ? Icons.visibility_off_rounded : Icons.visibility_rounded,
                       size: 20,
                     ),
                     onPressed: onToggleVisibility,
                   )
                 : null,
-            filled: true,
-            fillColor: Colors.white.withValues(alpha: 0.05),
-            contentPadding:
-                const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-            enabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(16),
-              borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.05)),
-            ),
-            focusedBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(16),
-              borderSide: const BorderSide(color: Color(0xFF3B82F6), width: 1.5),
-            ),
           ),
         ),
       ],
-    );
-  }
-
-  Widget _buildLoginButton() {
-    return Container(
-      width: double.infinity,
-      height: 56,
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(16),
-        gradient: const LinearGradient(
-          colors: [Color(0xFF2563EB), Color(0xFF3B82F6)],
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: const Color(0xFF2563EB).withValues(alpha: 0.3),
-            blurRadius: 16,
-            offset: const Offset(0, 8),
-          ),
-        ],
-      ),
-      child: ElevatedButton(
-        onPressed: _isLoading ? null : _handleLogin,
-        style: ElevatedButton.styleFrom(
-          backgroundColor: Colors.transparent,
-          shadowColor: Colors.transparent,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
-          ),
-        ),
-        child: _isLoading
-            ? const SizedBox(
-                width: 24,
-                height: 24,
-                child: CircularProgressIndicator(
-                  color: Colors.white,
-                  strokeWidth: 2,
-                ),
-              )
-            : Text(
-                'Login',
-                style: GoogleFonts.inter(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w700,
-                  color: Colors.white,
-                ),
-              ),
-      ),
     );
   }
 
   Widget _buildDivider() {
     return Row(
       children: [
-        Expanded(child: Divider(color: Colors.white.withValues(alpha: 0.1))),
+        Expanded(child: Divider(color: AppColors.glassStroke)),
         Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16),
+          padding: const EdgeInsets.symmetric(horizontal: 14),
           child: Text(
-            'OR CONTINUE WITH',
-            style: GoogleFonts.inter(
-              color: Colors.white24,
-              fontSize: 10,
-              fontWeight: FontWeight.w700,
-              letterSpacing: 1.2,
-            ),
+            'OR',
+            style: AppText.style(size: 11, weight: FontWeight.w700, spacing: 1.4, color: AppColors.textFaint),
           ),
         ),
-        Expanded(child: Divider(color: Colors.white.withValues(alpha: 0.1))),
+        Expanded(child: Divider(color: AppColors.glassStroke)),
       ],
-    );
-  }
-
-  Widget _buildGoogleButton() {
-    return SizedBox(
-      width: double.infinity,
-      height: 56,
-      child: OutlinedButton(
-        onPressed: _isLoading ? null : _handleGoogleSignIn,
-        style: OutlinedButton.styleFrom(
-          side: BorderSide(color: Colors.white.withValues(alpha: 0.1)),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
-          ),
-          backgroundColor: Colors.white.withValues(alpha: 0.03),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min, // Use minimum space
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(4),
-                child: Image.asset(
-                  'assets/images/google_logo.png',
-                  height: 20,
-                  width: 20,
-                  fit: BoxFit.contain,
-                ),
-              ),
-            ),
-            const SizedBox(width: 14),
-            Flexible(
-              child: Text(
-                'Sign in with Google',
-                style: GoogleFonts.inter(
-                  fontSize: 15,
-                  fontWeight: FontWeight.w600,
-                  letterSpacing: 0.2,
-                  color: Colors.white,
-                ),
-                overflow: TextOverflow.ellipsis,
-              ),
-            ),
-          ],
-        ),
-      ),
     );
   }
 
   Widget _buildFooter() {
-    return Column(
-      children: [
-        RichText(
-          text: TextSpan(
-            style: GoogleFonts.inter(color: Colors.white38, fontSize: 13),
-            children: [
-              const TextSpan(text: "Don't have an account? "),
-              TextSpan(
-                text: 'Sign Up',
-                style: const TextStyle(
-                  color: Color(0xFF60A5FA),
-                  fontWeight: FontWeight.w700,
-                ),
-                recognizer: TapGestureRecognizer()
-                  ..onTap = () {
-                    Navigator.pushNamed(context, '/register');
-                  },
-              ),
-            ],
+    return RichText(
+      text: TextSpan(
+        style: AppText.style(size: 14, color: AppColors.textMuted),
+        children: [
+          const TextSpan(text: "Don't have an account? "),
+          TextSpan(
+            text: 'Sign up',
+            style: AppText.style(size: 14, weight: FontWeight.w800, color: AppColors.cyan),
+            recognizer: TapGestureRecognizer()
+              ..onTap = () => Navigator.pushNamed(context, '/register'),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 }

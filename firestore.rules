@@ -1,8 +1,107 @@
 rules_version = '2';
+
+// Shared by the mobile app (quiz_app) and the admin CMS (admin_cms).
+//
+// - Mobile users have a users/{uid} profile with no `role` field.
+// - CMS staff have a users/{uid} profile with `role` (Root | Admin | User) and
+//   `status` (Active | Inactive). Only Root can create or change staff profiles.
+// - Results and bookmarks are keyed by username (not uid) in the mobile app,
+//   so ownership is checked against the username in the caller's own profile.
 service cloud.firestore {
   match /databases/{database}/documents {
-    match /{document=**} {
-      allow read, write: if true;
+
+    function signedIn() {
+      return request.auth != null;
     }
+
+    function myPath() {
+      return /databases/$(database)/documents/users/$(request.auth.uid);
+    }
+
+    function hasProfile() {
+      return signedIn() && exists(myPath());
+    }
+
+    function me() {
+      return get(myPath()).data;
+    }
+
+    function myRole() {
+      return hasProfile() && me().get('status', '') == 'Active' ? me().get('role', '') : '';
+    }
+
+    function isStaff() {
+      return myRole() in ['Root', 'Admin', 'User'];
+    }
+
+    function isAdmin() {
+      return myRole() in ['Root', 'Admin'];
+    }
+
+    function isRoot() {
+      return myRole() == 'Root';
+    }
+
+    function myUsername() {
+      return hasProfile() ? me().get('username', '') : '';
+    }
+
+    function ownsByUsername(data) {
+      return myUsername() != '' && data.get('userId', '') == myUsername();
+    }
+
+    // Fields a mobile user must never set on their own profile.
+    function privilegedFields() {
+      return ['role', 'status', 'allowedAccess', 'loginEmail'];
+    }
+
+    match /users/{userId} {
+      allow get: if (signedIn() && request.auth.uid == userId) || isStaff();
+      // Mobile app looks up its own profile by username (profile screen, account deletion).
+      allow list: if isStaff()
+        || (signedIn() && myUsername() != '' && resource.data.get('username', '') == myUsername());
+
+      allow create: if isRoot()
+        || (signedIn() && request.auth.uid == userId
+            && !request.resource.data.keys().hasAny(privilegedFields()));
+      allow update: if isRoot()
+        || (signedIn() && request.auth.uid == userId
+            && !request.resource.data.diff(resource.data).affectedKeys()
+                 .hasAny(privilegedFields().concat(['username'])));
+      allow delete: if isRoot() || (signedIn() && request.auth.uid == userId);
+
+      // Question sets unlocked with a rewarded ad.
+      match /unlockedSets/{setId} {
+        allow read, write: if signedIn() && request.auth.uid == userId;
+      }
+    }
+
+    match /subjects/{subjectId} {
+      allow read: if signedIn();
+      allow write: if isAdmin();
+    }
+
+    match /questions/{questionId} {
+      allow read: if signedIn();
+      allow write: if isStaff();
+    }
+
+    match /results/{resultId} {
+      allow read, delete: if ownsByUsername(resource.data);
+      allow create: if ownsByUsername(request.resource.data);
+    }
+
+    match /bookmarks/{bookmarkId} {
+      allow read, delete: if ownsByUsername(resource.data);
+      allow create: if ownsByUsername(request.resource.data);
+      allow update: if ownsByUsername(resource.data) && ownsByUsername(request.resource.data);
+    }
+
+    match /logs/{logId} {
+      allow read: if isRoot() || (isStaff() && resource.data.userId == request.auth.uid);
+      allow create: if isStaff() && request.resource.data.userId == request.auth.uid;
+    }
+
+    // Everything else is closed.
   }
 }

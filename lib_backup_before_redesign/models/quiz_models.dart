@@ -1,0 +1,211 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
+
+class UserProfile {
+  final String username;
+  final int points;
+  final int quizzesTaken;
+  final double accuracy;
+  final DateTime createdAt;
+  final String? password; // Kept for demonstration or fallback
+  final String? email;    // Added for Firebase Auth
+  final String? uid;      // Added for Firebase Auth
+  final String? photoUrl; // Added for Profile Picture
+
+  UserProfile({
+    required this.username,
+    required this.points,
+    required this.quizzesTaken,
+    required this.accuracy,
+    required this.createdAt,
+    this.password,
+    this.email,
+    this.uid,
+    this.photoUrl,
+  });
+
+  factory UserProfile.fromMap(Map<String, dynamic> data) {
+    return UserProfile(
+      username: data['username'] ?? '',
+      points: data['points'] ?? 0,
+      quizzesTaken: data['quizzesTaken'] ?? 0,
+      accuracy: (data['accuracy'] ?? 0.0).toDouble(),
+      createdAt: (data['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
+      password: data['password'],
+      email: data['email'],
+      uid: data['uid'],
+      photoUrl: data['photoUrl'],
+    );
+  }
+
+  Map<String, dynamic> toMap() {
+    return {
+      'username': username,
+      'points': points,
+      'quizzesTaken': quizzesTaken,
+      'accuracy': accuracy,
+      'createdAt': Timestamp.fromDate(createdAt),
+      if (password != null) 'password': password,
+      if (email != null) 'email': email,
+      if (uid != null) 'uid': uid,
+      if (photoUrl != null) 'photoUrl': photoUrl,
+    };
+  }
+}
+
+class Subject {
+  final String id;
+  final String name;
+  final String iconName;
+  final String colorHex;
+  final int grade;
+  final String? medium;
+
+  Subject({
+    required this.id,
+    required this.name,
+    required this.iconName,
+    required this.colorHex,
+    required this.grade,
+    this.medium,
+  });
+
+  factory Subject.fromMap(String id, Map<String, dynamic> data) {
+    return Subject(
+      id: id,
+      name: data['name'] ?? '',
+      iconName: data['iconName'] ?? '',
+      colorHex: data['colorHex'] ?? '#2563EB',
+      grade: data['grade'] ?? 10,
+      medium: data['medium'] as String?,
+    );
+  }
+}
+
+class Bucket {
+  final String id;
+  final String name;
+  final int questionCount;
+
+  Bucket({
+    required this.id,
+    required this.name,
+    required this.questionCount,
+  });
+}
+
+class Question {
+  final String id;
+  final String subjectId;
+  final int grade;
+  final String text;
+  final List<String> options;
+  final int correctIndex;
+  final String? imageUrl;
+  final List<String>? optionImages; // Added
+  final int? timeLimit;
+  final String? medium; // Added
+  final String? scenarioText; // NEW
+  final String? scenarioImageUrl; // NEW
+  final String? bucketId; // NEW
+  final String? bucketName; // NEW
+  final int? bucketNumber; // NEW
+
+  Question({
+    required this.id,
+    required this.subjectId,
+    required this.grade,
+    required this.text,
+    required this.options,
+    required this.correctIndex,
+    this.imageUrl,
+    this.optionImages,
+    this.timeLimit,
+    this.medium,
+    this.scenarioText,
+    this.scenarioImageUrl,
+    this.bucketId,
+    this.bucketName,
+    this.bucketNumber,
+  });
+
+  factory Question.fromMap(String id, Map<String, dynamic> data) {
+    return Question(
+      id: id,
+      subjectId: data['subjectId'] ?? '',
+      grade: data['grade'] ?? 10,
+      text: data['text'] ?? '',
+      options: List<String>.from(data['options'] ?? []),
+      correctIndex: data['correctIndex'] ?? 0,
+      imageUrl: data['imageUrl'],
+      optionImages: data['optionImages'] != null 
+          ? List<String>.from(data['optionImages']) 
+          : null,
+      timeLimit: data['timeLimit'] != null ? (data['timeLimit'] as num).toInt() : null,
+      medium: data['medium'] as String?,
+      scenarioText: data['scenarioText'] as String?,
+      scenarioImageUrl: data['scenarioImageUrl'] as String?,
+      bucketId: data['bucketId'] as String?,
+      bucketName: data['bucketName'] as String?,
+      bucketNumber: data['bucketNumber'] != null ? (data['bucketNumber'] as num).toInt() : null,
+    );
+  }
+
+  Map<String, dynamic> toMap() {
+    return {
+      'subjectId': subjectId,
+      'grade': grade,
+      'text': text,
+      'options': options,
+      'correctIndex': correctIndex,
+      if (imageUrl != null) 'imageUrl': imageUrl,
+      if (optionImages != null) 'optionImages': optionImages,
+      if (timeLimit != null) 'timeLimit': timeLimit,
+      if (medium != null) 'medium': medium,
+      if (scenarioText != null) 'scenarioText': scenarioText,
+      if (scenarioImageUrl != null) 'scenarioImageUrl': scenarioImageUrl,
+      if (bucketId != null) 'bucketId': bucketId,
+      if (bucketName != null) 'bucketName': bucketName,
+      if (bucketNumber != null) 'bucketNumber': bucketNumber,
+    };
+  }
+}
+
+class QuizResult {
+  final String id;
+  final String userId;
+  final String subjectId;
+  final String subjectName;
+  final int grade; // Added
+  final int score;
+  final int totalQuestions;
+  final DateTime date;
+  final List<int> userAnswers;
+
+  QuizResult({
+    required this.id,
+    required this.userId,
+    required this.subjectId,
+    required this.subjectName,
+    required this.grade,
+    required this.score,
+    required this.totalQuestions,
+    required this.date,
+    required this.userAnswers,
+  });
+
+  factory QuizResult.fromMap(String id, Map<String, dynamic> data) {
+    return QuizResult(
+      id: id,
+      userId: data['userId'] ?? '',
+      subjectId: data['subjectId'] ?? '',
+      subjectName: data['subjectName'] ?? '',
+      grade: data['grade'] ?? 10,
+      score: data['score'] ?? 0,
+      totalQuestions: data['totalQuestions'] ?? 0,
+      date: (data['date'] as Timestamp?)?.toDate() ?? DateTime.now(),
+      userAnswers: List<int>.from(data['userAnswers'] ?? []),
+    );
+  }
+
+  double get percentage => totalQuestions > 0 ? score / totalQuestions : 0.0;
+}

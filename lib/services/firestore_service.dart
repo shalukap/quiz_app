@@ -198,6 +198,22 @@ class FirestoreService {
     return finalBuckets;
   }
 
+  // QUESTION SET UNLOCKS (rewarded ads)
+  Future<Set<String>> getUnlockedSetIds(String userId) async {
+    final snapshot =
+        await _db.collection('users').doc(userId).collection('unlockedSets').get();
+    return snapshot.docs.map((doc) => doc.id).toSet();
+  }
+
+  Future<void> unlockSet(String userId, String setKey) async {
+    await _db
+        .collection('users')
+        .doc(userId)
+        .collection('unlockedSets')
+        .doc(setKey)
+        .set({'unlockedAt': FieldValue.serverTimestamp()});
+  }
+
   // RESULTS
   Future<void> saveQuizResult({
     required String username,
@@ -270,6 +286,40 @@ class FirestoreService {
     await _db.collection('users').doc(docId).update({
       'photoUrl': photoUrl,
     });
+  }
+
+  // ACCOUNT DELETION
+  /// Deletes everything stored for this user: profile, unlocked sets,
+  /// quiz results and bookmarks.
+  Future<void> deleteUserData({required String uid, String? username}) async {
+    final refs = <DocumentReference>[];
+
+    final unlocked = await _db.collection('users').doc(uid).collection('unlockedSets').get();
+    refs.addAll(unlocked.docs.map((d) => d.reference));
+
+    // Results and bookmarks are keyed by username, which isn't unique. Only
+    // delete them when no other account uses the same username.
+    if (username != null && username.isNotEmpty) {
+      final sameName = await _db.collection('users').where('username', isEqualTo: username).get();
+      final usedByOthers = sameName.docs.any((d) => d.id != uid);
+      if (!usedByOthers) {
+        for (final collection in ['results', 'bookmarks']) {
+          final snapshot = await _db.collection(collection).where('userId', isEqualTo: username).get();
+          refs.addAll(snapshot.docs.map((d) => d.reference));
+        }
+      }
+    }
+
+    refs.add(_db.collection('users').doc(uid));
+
+    // Firestore batches are limited to 500 writes.
+    for (var i = 0; i < refs.length; i += 450) {
+      final batch = _db.batch();
+      for (final ref in refs.skip(i).take(450)) {
+        batch.delete(ref);
+      }
+      await batch.commit();
+    }
   }
 
   // BOOKMARKS

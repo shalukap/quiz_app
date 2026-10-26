@@ -22,6 +22,30 @@
           }
         },
         {
+          "client_id": "1038214637528-ejbietmjovv35mpavkp53tk0im3ivvcr.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.judeshaluka.quiz_master",
+            "certificate_hash": "930943fb2b2399bb7efa2ad1cde926e9e2f3e17e"
+          }
+        },
+        {
+          "client_id": "1038214637528-j6vo2fosl377impsqae3k3cvvd9slhd7.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.judeshaluka.quiz_master",
+            "certificate_hash": "6f2019c74abacc1903e187c99f22b98f2009d4c2"
+          }
+        },
+        {
+          "client_id": "1038214637528-ke5ll62f2tmvu7trisobfbj3n4etoeco.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.judeshaluka.quiz_master",
+            "certificate_hash": "ec5dc745c7574f7caabb24bc67429c3c8374ff11"
+          }
+        },
+        {
           "client_id": "1038214637528-v8fv4f44mhpu7j04l0ve8ooao5u2aajt.apps.googleusercontent.com",
           "client_type": 3
         }
@@ -35,7 +59,7 @@
         "appinvite_service": {
           "other_platform_oauth_client": [
             {
-              "client_id": "1038214637528-v8fv4f44mhpu7j04l0ve8ooao5u2aajt.apps.googleusercontent.com",
+              "client_id": "1038214637528-636nv68d24tmibmd8nhnh6sfohfmqahk.apps.googleusercontent.com",
               "client_type": 3
             },
             {

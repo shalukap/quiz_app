@@ -1,9 +1,17 @@
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'firebase_options.dart';
+import 'theme/app_theme.dart';
+import 'services/ad_helper.dart';
+import 'services/interstitial_ad_manager.dart';
+import 'services/app_open_ad_manager.dart';
+import 'services/rewarded_ad_manager.dart';
+import 'services/subscription_service.dart';
+import 'services/analytics_service.dart';
+import 'widgets/glass_ui.dart';
 
 import 'screens/login_screen.dart';
 import 'screens/register_screen.dart';
@@ -16,6 +24,7 @@ import 'screens/review_answers_screen.dart';
 import 'screens/bucket_selection_screen.dart';
 import 'screens/quiz_history_screen.dart';
 import 'screens/saved_questions_screen.dart';
+import 'screens/premium_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -31,7 +40,21 @@ void main() async {
       debugPrint('Google Sign-In failed to initialize: $e');
     }
   }
-  
+
+  // QuizMaster Premium (RevenueCat). Keeps the gold premium style in sync.
+  final subscriptions = SubscriptionService.instance;
+  subscriptions.addListener(() => PremiumStyle.active = subscriptions.isPremium);
+  await subscriptions.init();
+
+  if (!kIsWeb) {
+    await MobileAds.instance.initialize();
+    await AdHelper.configure();
+    InterstitialAdManager.instance.loadAd();
+    AppOpenAdManager.instance.loadAd();
+    RewardedAdManager.instance.loadAd();
+    AppOpenLifecycleReactor().listen();
+  }
+
   runApp(const QuizApp());
 }
 
@@ -43,17 +66,9 @@ class QuizApp extends StatelessWidget {
     return MaterialApp(
       title: 'Question Bank',
       debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        brightness: Brightness.dark,
-        scaffoldBackgroundColor: const Color(0xFF0F172A),
-        colorScheme: ColorScheme.fromSeed(
-          seedColor: const Color(0xFF2563EB),
-          brightness: Brightness.dark,
-          surface: const Color(0xFF1E293B),
-        ),
-        textTheme: GoogleFonts.interTextTheme(ThemeData.dark().textTheme),
-        useMaterial3: true,
-      ),
+      theme: AppTheme.dark,
+      builder: (context, child) => PremiumScope(child: child ?? const SizedBox.shrink()),
+      navigatorObservers: [AnalyticsService.instance.observer],
       initialRoute: '/',
       routes: {
         '/': (context) => const LoginScreen(),
@@ -67,6 +82,7 @@ class QuizApp extends StatelessWidget {
         '/review_answers': (context) => const ReviewAnswersScreen(),
         '/history': (context) => const QuizHistoryScreen(),
         '/saved': (context) => const SavedQuestionsScreen(),
+        '/premium': (context) => const PremiumScreen(),
       },
     );
   }

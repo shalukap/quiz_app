@@ -1,8 +1,9 @@
-import 'dart:ui';
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 import '../services/firestore_service.dart';
 import '../models/quiz_models.dart';
+import '../config/grades.dart';
+import '../theme/app_theme.dart';
+import '../widgets/glass_ui.dart';
 
 class SubjectSelectionScreen extends StatelessWidget {
   const SubjectSelectionScreen({super.key});
@@ -15,147 +16,33 @@ class SubjectSelectionScreen extends StatelessWidget {
 
     return Scaffold(
       extendBodyBehindAppBar: true,
-      appBar: AppBar(
-        elevation: 0,
-        backgroundColor: Colors.transparent,
-        leading: const BackButton(color: Colors.white),
-        title: Text(
-          'QuizMaster',
-          style: GoogleFonts.inter(
-            fontWeight: FontWeight.w800,
-            fontSize: 18,
-            color: Colors.white,
-            letterSpacing: -0.5,
-          ),
-        ),
-        centerTitle: true,
-      ),
-      body: Stack(
-        children: [
-          _buildBackground(),
-          SafeArea(
-            child: Column(
-              children: [
-                const SizedBox(height: 16),
-                _buildProgressSection(),
-                const SizedBox(height: 32),
-                _buildHeader(grade),
-                const SizedBox(height: 24),
-                Expanded(
-                  child: _buildSubjectList(context, grade, medium),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildBackground() {
-    return Container(
-      decoration: const BoxDecoration(
-        color: Color(0xFF0F172A),
-        gradient: RadialGradient(
-          center: Alignment(0.7, -0.6),
-          radius: 1.5,
-          colors: [
-            Color(0xFF1E3A8A),
-            Color(0xFF0F172A),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildProgressSection() {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 24),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      appBar: glassAppBar(context, title: 'Subjects'),
+      body: AuroraBackground(
+        child: SafeArea(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                'Step 2 of 5',
-                style: GoogleFonts.inter(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w700,
-                  color: Colors.white30,
-                  letterSpacing: 1,
+              const Padding(
+                padding: EdgeInsets.fromLTRB(24, 12, 24, 0),
+                child: StepProgress(step: 2, total: 5),
+              ),
+              const SizedBox(height: 28),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 24),
+                child: FadeSlideIn(
+                  child: PageHeader(
+                    overline: '${Grades.label(grade)} · $medium',
+                    title: 'What would you\nlike to study?',
+                  ),
                 ),
               ),
-              Text(
-                '40% COMPLETE',
-                style: GoogleFonts.inter(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w800,
-                  color: const Color(0xFF60A5FA),
-                  letterSpacing: 1,
-                ),
+              const SizedBox(height: 20),
+              Expanded(
+                child: _buildSubjectList(context, grade, medium),
               ),
             ],
           ),
-          const SizedBox(height: 12),
-          Container(
-            height: 6,
-            width: double.infinity,
-            decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.05),
-              borderRadius: BorderRadius.circular(3),
-            ),
-            child: FractionallySizedBox(
-              alignment: Alignment.centerLeft,
-              widthFactor: 0.4,
-              child: Container(
-                decoration: BoxDecoration(
-                  gradient: const LinearGradient(
-                    colors: [Color(0xFF2563EB), Color(0xFF60A5FA)],
-                  ),
-                  borderRadius: BorderRadius.circular(3),
-                  boxShadow: [
-                    BoxShadow(
-                      color: const Color(0xFF2563EB).withValues(alpha: 0.3),
-                      blurRadius: 8,
-                      offset: const Offset(0, 2),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildHeader(int grade) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 24),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'What would you like to study?',
-            style: GoogleFonts.inter(
-              fontSize: 26,
-              fontWeight: FontWeight.w900,
-              color: Colors.white,
-              height: 1.2,
-              letterSpacing: -0.5,
-            ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            'Based on Grade $grade curriculum',
-            style: GoogleFonts.inter(
-              fontSize: 14,
-              color: Colors.white54,
-              fontWeight: FontWeight.w500,
-            ),
-          ),
-        ],
+        ),
       ),
     );
   }
@@ -165,45 +52,29 @@ class SubjectSelectionScreen extends StatelessWidget {
       future: FirestoreService().getSubjects(grade, medium: medium),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Center(
-            child: CircularProgressIndicator(color: Color(0xFF3B82F6)),
-          );
+          return const AppLoader();
         }
         if (snapshot.hasError) {
-          return Center(
-            child: Text(
-              'Error loading $medium subjects',
-              style: GoogleFonts.inter(color: Colors.white54),
-            ),
+          return EmptyState(
+            icon: Icons.cloud_off_rounded,
+            title: 'Something went wrong',
+            subtitle: 'Error loading $medium subjects',
           );
         }
 
         final subjects = snapshot.data ?? [];
         if (subjects.isEmpty) {
-          return Center(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(Icons.inventory_2_outlined,
-                    size: 64, color: Colors.white.withValues(alpha: 0.05)),
-                const SizedBox(height: 24),
-                Text(
-                  'No subjects found for $medium.',
-                  style: GoogleFonts.inter(
-                    color: Colors.white24,
-                    fontSize: 15,
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-              ],
-            ),
+          return EmptyState(
+            icon: Icons.inventory_2_outlined,
+            title: 'No subjects yet',
+            subtitle: 'No subjects found for $medium.',
           );
         }
 
         return ListView.separated(
-          padding: const EdgeInsets.fromLTRB(24, 8, 24, 24),
+          padding: const EdgeInsets.fromLTRB(24, 8, 24, 32),
           itemCount: subjects.length,
-          separatorBuilder: (_, __) => const SizedBox(height: 16),
+          separatorBuilder: (_, __) => const SizedBox(height: 12),
           itemBuilder: (context, index) {
             final subject = subjects[index];
 
@@ -213,21 +84,25 @@ class SubjectSelectionScreen extends StatelessWidget {
             if (subject.iconName == 'history') iconData = Icons.history_edu_rounded;
             if (subject.iconName == 'language') iconData = Icons.language_rounded;
 
-            return _SubjectCard(
-              subject: subject,
-              iconData: iconData,
-              onTap: () {
-                Navigator.pushNamed(
-                  context,
-                  '/buckets',
-                  arguments: {
-                    'grade': grade,
-                    'subjectId': subject.id,
-                    'subjectName': subject.name,
-                    'medium': medium,
-                  },
-                );
-              },
+            return FadeSlideIn(
+              index: index,
+              child: _SubjectCard(
+                subject: subject,
+                iconData: iconData,
+                fallbackColor: AppColors.accentAt(index),
+                onTap: () {
+                  Navigator.pushNamed(
+                    context,
+                    '/buckets',
+                    arguments: {
+                      'grade': grade,
+                      'subjectId': subject.id,
+                      'subjectName': subject.name,
+                      'medium': medium,
+                    },
+                  );
+                },
+              ),
             );
           },
         );
@@ -239,100 +114,50 @@ class SubjectSelectionScreen extends StatelessWidget {
 class _SubjectCard extends StatelessWidget {
   final Subject subject;
   final IconData iconData;
+  final Color fallbackColor;
   final VoidCallback onTap;
 
-  const _SubjectCard(
-      {required this.subject, required this.iconData, required this.onTap});
+  const _SubjectCard({
+    required this.subject,
+    required this.iconData,
+    required this.fallbackColor,
+    required this.onTap,
+  });
+
+  Color get _color {
+    try {
+      return Color(int.parse(subject.colorHex.replaceFirst('#', '0xFF')));
+    } catch (_) {
+      return fallbackColor;
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
-    final subjectColor =
-        Color(int.parse(subject.colorHex.replaceFirst('#', '0xFF')));
-
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(20),
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-        child: GestureDetector(
-          onTap: onTap,
-          child: Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.05),
-              borderRadius: BorderRadius.circular(20),
-              border: Border.all(
-                color: Colors.white.withValues(alpha: 0.08),
-                width: 1.2,
-              ),
-            ),
-            child: Row(
+    final color = _color;
+    return GlassCard(
+      onTap: onTap,
+      padding: const EdgeInsets.all(16),
+      child: Row(
+        children: [
+          IconBadge(icon: iconData, color: color, size: 52),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Container(
-                  width: 52,
-                  height: 52,
-                  decoration: BoxDecoration(
-                    color: subjectColor.withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(14),
-                  ),
-                  child: Icon(
-                    iconData,
-                    color: subjectColor,
-                    size: 26,
-                  ),
+                Text(
+                  subject.name,
+                  style: AppText.style(size: 16, weight: FontWeight.w700, spacing: -0.2),
                 ),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        subject.name,
-                        style: GoogleFonts.inter(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w700,
-                          color: Colors.white,
-                          letterSpacing: -0.2,
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 8, vertical: 3),
-                        decoration: BoxDecoration(
-                          color: Colors.white.withValues(alpha: 0.05),
-                          borderRadius: BorderRadius.circular(6),
-                        ),
-                        child: Text(
-                          'Practice Quiz',
-                          style: GoogleFonts.inter(
-                            fontSize: 10,
-                            fontWeight: FontWeight.w600,
-                            color: Colors.white38,
-                            letterSpacing: 0.5,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                Container(
-                  padding: const EdgeInsets.all(6),
-                  decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.03),
-                    shape: BoxShape.circle,
-                  ),
-                  child: const Icon(
-                    Icons.chevron_right_rounded,
-                    color: Colors.white24,
-                    size: 20,
-                  ),
-                ),
+                const SizedBox(height: 6),
+                Pill(label: 'Practice quiz', color: color, icon: Icons.bolt_rounded),
               ],
             ),
           ),
-        ),
+          Icon(Icons.chevron_right_rounded, color: AppColors.textMuted),
+        ],
       ),
     );
   }
 }
-

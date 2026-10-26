@@ -1,11 +1,15 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'dart:async';
-import 'package:google_fonts/google_fonts.dart';
 import '../services/firestore_service.dart';
+import '../services/interstitial_ad_manager.dart';
 import '../models/quiz_models.dart';
 import '../state/app_state.dart';
 import '../widgets/formatted_text.dart';
+import '../widgets/banner_ad_widget.dart';
+import '../widgets/glass_ui.dart';
+import '../theme/app_theme.dart';
+import '../services/analytics_service.dart';
 
 class McqScreen extends StatefulWidget {
   const McqScreen({super.key});
@@ -191,108 +195,131 @@ class _McqScreenState extends State<McqScreen> {
         totalQuestions: _questions!.length,
         userAnswers: _userAnswers,
       );
+      AnalyticsService.instance.logQuizCompleted(
+        grade: _grade,
+        subjectName: subjectName,
+        medium: args?['medium'] as String?,
+        score: _score,
+        totalQuestions: _questions!.length,
+      );
     } catch (e) {
       // Silence
     }
 
     if (mounted) {
       setState(() => _isSaving = false);
-      _showResults();
+      InterstitialAdManager.instance.showAdThen(() {
+        if (mounted) _showResults();
+      });
     }
   }
 
   void _showResults() {
     final screenContext = context;
+    final total = _questions?.length ?? 0;
+    final ratio = total == 0 ? 0.0 : _score / total;
+    final color = AppColors.scoreColor(ratio);
+    final headline = ratio >= 0.75
+        ? 'Outstanding! 🎉'
+        : ratio >= 0.5
+            ? 'Nice work! 👏'
+            : 'Keep practicing 💪';
+
     showDialog(
       context: screenContext,
       barrierDismissible: false,
+      barrierColor: Colors.black.withValues(alpha: 0.6),
       builder: (dialogContext) => BackdropFilter(
         filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
-        child: AlertDialog(
-          backgroundColor: const Color(0xFF1E293B).withValues(alpha: 0.9),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
-          title: Text(
-            'Quiz Completed!',
-            style: GoogleFonts.inter(
-                color: Colors.white, fontWeight: FontWeight.w900),
-            textAlign: TextAlign.center,
-          ),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                'YOUR SCORE',
-                style: GoogleFonts.inter(
-                  color: Colors.white38,
-                  fontWeight: FontWeight.w800,
-                  letterSpacing: 1,
-                  fontSize: 12,
-                ),
-              ),
-              const SizedBox(height: 12),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-                decoration: BoxDecoration(
-                  color: const Color(0xFF3B82F6).withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                child: Text(
-                  '$_score / ${_questions?.length ?? 0}',
-                  style: GoogleFonts.inter(
-                    color: const Color(0xFF60A5FA),
-                    fontSize: 42,
-                    fontWeight: FontWeight.w900,
+        child: Dialog(
+          insetPadding: const EdgeInsets.symmetric(horizontal: 28),
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(24, 32, 24, 24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text('QUIZ COMPLETE', style: AppText.overline(color: AppColors.cyan)),
+                const SizedBox(height: 8),
+                Text(headline, style: AppText.title(), textAlign: TextAlign.center),
+                const SizedBox(height: 28),
+                TweenAnimationBuilder<double>(
+                  tween: Tween(begin: 0, end: ratio),
+                  duration: const Duration(milliseconds: 1100),
+                  curve: Curves.easeOutCubic,
+                  builder: (context, v, _) => SizedBox(
+                    width: 150,
+                    height: 150,
+                    child: Stack(
+                      fit: StackFit.expand,
+                      children: [
+                        Container(
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            boxShadow: [
+                              BoxShadow(color: color.withValues(alpha: 0.3), blurRadius: 40),
+                            ],
+                          ),
+                        ),
+                        CircularProgressIndicator(
+                          value: v,
+                          strokeWidth: 12,
+                          strokeCap: StrokeCap.round,
+                          color: color,
+                          backgroundColor: Colors.white.withValues(alpha: 0.08),
+                        ),
+                        Center(
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                '${(v * 100).round()}%',
+                                style: AppText.style(size: 34, weight: FontWeight.w800, spacing: -1),
+                              ),
+                              Text(
+                                '$_score / $total',
+                                style: AppText.style(size: 13, weight: FontWeight.w700, color: AppColors.textMuted),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
-              ),
-            ],
-          ),
-          actionsAlignment: MainAxisAlignment.center,
-          actions: [
-            Padding(
-              padding: const EdgeInsets.only(bottom: 12),
-              child: ElevatedButton(
-                onPressed: () async {
-                  Navigator.pop(dialogContext);
-                  final result = await Navigator.pushNamed(
-                    screenContext,
-                    '/review_answers',
-                    arguments: {
-                      'questions': _questions!,
-                      'userAnswers': _userAnswers,
-                    },
-                  );
-                  if (screenContext.mounted) {
-                    if (result == 'restart') {
-                      setState(() {
-                        _currentQuestion = 0;
-                        _selectedOption = null;
-                        _score = 0;
-                        _userAnswers = List<int>.filled(_questions!.length, -1);
-                        _bookmarkedQuestions = List<bool>.filled(_questions!.length, false);
-                        _questionTimesRemaining = _questions!.map((q) => q.timeLimit ?? 30).toList();
-                      });
-                      _startTimerForQuestion();
-                    } else {
-                      Navigator.pop(screenContext);
+                const SizedBox(height: 28),
+                GradientButton(
+                  label: 'Review answers',
+                  icon: Icons.arrow_forward_rounded,
+                  onPressed: () async {
+                    Navigator.pop(dialogContext);
+                    final result = await Navigator.pushNamed(
+                      screenContext,
+                      '/review_answers',
+                      arguments: {
+                        'questions': _questions!,
+                        'userAnswers': _userAnswers,
+                      },
+                    );
+                    if (screenContext.mounted) {
+                      if (result == 'restart') {
+                        setState(() {
+                          _currentQuestion = 0;
+                          _selectedOption = null;
+                          _score = 0;
+                          _userAnswers = List<int>.filled(_questions!.length, -1);
+                          _bookmarkedQuestions = List<bool>.filled(_questions!.length, false);
+                          _questionTimesRemaining = _questions!.map((q) => q.timeLimit ?? 30).toList();
+                        });
+                        _startTimerForQuestion();
+                      } else {
+                        Navigator.pop(screenContext);
+                      }
                     }
-                  }
-                },
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF3B82F6),
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
-                  shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(16)),
-                  elevation: 0,
+                  },
                 ),
-                child: Text(
-                  'Review Results',
-                  style: GoogleFonts.inter(fontWeight: FontWeight.w700),
-                ),
-              ),
+              ],
             ),
-          ],
+          ),
         ),
       ),
     );
@@ -301,30 +328,21 @@ class _McqScreenState extends State<McqScreen> {
   @override
   Widget build(BuildContext context) {
     if (_isLoading) {
-      return Scaffold(
-        body: Stack(
-          children: [
-            _buildBackground(),
-            const Center(child: CircularProgressIndicator(color: Color(0xFF3B82F6))),
-          ],
-        ),
+      return const Scaffold(
+        body: AuroraBackground(child: AppLoader()),
       );
     }
 
     if (_error != null || _questions == null || _questions!.isEmpty) {
       return Scaffold(
         extendBodyBehindAppBar: true,
-        appBar: AppBar(backgroundColor: Colors.transparent, elevation: 0),
-        body: Stack(
-          children: [
-            _buildBackground(),
-            Center(
-              child: Text(
-                'No questions available.',
-                style: GoogleFonts.inter(color: Colors.white54, fontSize: 16),
-              ),
-            ),
-          ],
+        appBar: glassAppBar(context),
+        body: const AuroraBackground(
+          child: EmptyState(
+            icon: Icons.quiz_outlined,
+            title: 'No questions available',
+            subtitle: 'Try another question set.',
+          ),
         ),
       );
     }
@@ -335,184 +353,97 @@ class _McqScreenState extends State<McqScreen> {
 
     return Scaffold(
       extendBodyBehindAppBar: true,
-      appBar: AppBar(
-        elevation: 0,
-        backgroundColor: Colors.transparent,
-        leading: const BackButton(color: Colors.white),
-        title: Text(
-          'QuizMaster',
-          style: GoogleFonts.inter(
-            fontWeight: FontWeight.w800,
-            fontSize: 18,
-            color: Colors.white,
-            letterSpacing: -0.5,
-          ),
+      appBar: glassAppBar(
+        context,
+        leading: const Padding(
+          padding: EdgeInsets.only(left: 16),
+          child: GlassBackButton(icon: Icons.close_rounded),
         ),
-        centerTitle: true,
-        actions: [
-          _buildTimerWidget(),
-        ],
+        title: 'Question ${_currentQuestion + 1} of $totalQuestions',
+        actions: [_buildTimerWidget(question)],
       ),
-      body: Stack(
-        children: [
-          _buildBackground(),
-          SafeArea(
-            child: Column(
-              children: [
-                const SizedBox(height: 16),
-                _buildProgressSection(progress, totalQuestions),
-                const SizedBox(height: 24),
-                Expanded(
+      body: AuroraBackground(
+        child: SafeArea(
+          child: Column(
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(24, 8, 24, 0),
+                child: GlowProgressBar(value: progress),
+              ),
+              const SizedBox(height: 20),
+              Expanded(
+                child: AnimatedSwitcher(
+                  duration: const Duration(milliseconds: 300),
+                  switchInCurve: Curves.easeOutCubic,
+                  transitionBuilder: (child, animation) => FadeTransition(
+                    opacity: animation,
+                    child: SlideTransition(
+                      position: Tween(begin: const Offset(0.04, 0), end: Offset.zero).animate(animation),
+                      child: child,
+                    ),
+                  ),
                   child: SingleChildScrollView(
+                    key: ValueKey(_currentQuestion),
                     padding: const EdgeInsets.symmetric(horizontal: 24),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        _buildQuestionHeader(),
-                        const SizedBox(height: 16),
                         _buildScenarioCard(question),
-                        _buildQuestionText(question),
-                        _buildQuestionImage(question),
-                        const SizedBox(height: 32),
+                        _buildQuestionCard(question),
+                        const SizedBox(height: 20),
+                        _buildQuestionHeader(),
+                        const SizedBox(height: 12),
                         _buildOptionsList(question),
-                        const SizedBox(height: 32),
+                        const SizedBox(height: 24),
                       ],
                     ),
                   ),
                 ),
-                _buildBottomActions(),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildBackground() {
-    return Container(
-      decoration: const BoxDecoration(
-        color: Color(0xFF0F172A),
-        gradient: RadialGradient(
-          center: Alignment(0.7, -0.6),
-          radius: 1.5,
-          colors: [
-            Color(0xFF1E3A8A),
-            Color(0xFF0F172A),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildTimerWidget() {
-    final bool isLowTime = _secondsRemaining < 5;
-    return Center(
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 300),
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-        margin: const EdgeInsets.only(right: 16),
-        decoration: BoxDecoration(
-          color: isLowTime
-              ? const Color(0xFFEF4444).withValues(alpha: 0.15)
-              : Colors.white.withValues(alpha: 0.05),
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(
-            color: isLowTime
-                ? const Color(0xFFEF4444).withValues(alpha: 0.5)
-                : Colors.white.withValues(alpha: 0.1),
-            width: 1.5,
-          ),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              Icons.timer_outlined,
-              color: isLowTime ? const Color(0xFFF87171) : const Color(0xFF60A5FA),
-              size: 16,
-            ),
-            const SizedBox(width: 6),
-            Text(
-              '${_secondsRemaining}s',
-              style: GoogleFonts.inter(
-                color: isLowTime ? const Color(0xFFF87171) : Colors.white,
-                fontWeight: FontWeight.w800,
-                fontSize: 14,
               ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildProgressSection(double progress, int total) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 24),
-      child: Column(
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Step 4 of 5',
-                    style: GoogleFonts.inter(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w700,
-                      color: Colors.white30,
-                      letterSpacing: 1,
-                    ),
-                  ),
-                  Text(
-                    'Question ${_currentQuestion + 1} of $total',
-                    style: GoogleFonts.inter(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w800,
-                      color: Colors.white,
-                    ),
-                  ),
-                ],
-              ),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                decoration: BoxDecoration(
-                  color: const Color(0xFF3B82F6).withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Text(
-                  '${(progress * 100).toInt()}%',
-                  style: GoogleFonts.inter(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w900,
-                    color: const Color(0xFF60A5FA),
-                  ),
-                ),
-              ),
+              const BannerAdWidget(),
+              _buildBottomActions(),
             ],
           ),
-          const SizedBox(height: 12),
-          Container(
-            height: 6,
-            width: double.infinity,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildTimerWidget(Question question) {
+    final total = (question.timeLimit ?? 30).clamp(1, 1 << 30);
+    final bool isLowTime = _secondsRemaining < 5;
+    final color = isLowTime ? AppColors.danger : AppColors.cyan;
+    return SizedBox(
+      width: 46,
+      height: 46,
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          AnimatedContainer(
+            duration: const Duration(milliseconds: 300),
             decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.05),
-              borderRadius: BorderRadius.circular(3),
+              shape: BoxShape.circle,
+              color: isLowTime ? AppColors.danger.withValues(alpha: 0.15) : AppColors.glassFill,
+              boxShadow: isLowTime
+                  ? [BoxShadow(color: AppColors.danger.withValues(alpha: 0.4), blurRadius: 16)]
+                  : null,
             ),
-            child: FractionallySizedBox(
-              alignment: Alignment.centerLeft,
-              widthFactor: progress,
-              child: Container(
-                decoration: BoxDecoration(
-                  gradient: const LinearGradient(
-                    colors: [Color(0xFF2563EB), Color(0xFF60A5FA)],
-                  ),
-                  borderRadius: BorderRadius.circular(3),
-                ),
-              ),
+          ),
+          TweenAnimationBuilder<double>(
+            tween: Tween(end: (_secondsRemaining / total).clamp(0.0, 1.0)),
+            duration: const Duration(milliseconds: 900),
+            builder: (context, v, _) => CircularProgressIndicator(
+              value: v,
+              strokeWidth: 3,
+              strokeCap: StrokeCap.round,
+              color: color,
+              backgroundColor: Colors.white.withValues(alpha: 0.08),
+            ),
+          ),
+          Center(
+            child: Text(
+              '$_secondsRemaining',
+              style: AppText.style(size: 14, weight: FontWeight.w800, color: isLowTime ? AppColors.danger : Colors.white),
             ),
           ),
         ],
@@ -521,15 +452,7 @@ class _McqScreenState extends State<McqScreen> {
   }
 
   Widget _buildQuestionHeader() {
-    return Text(
-      'SELECT THE CORRECT OPTION',
-      style: GoogleFonts.inter(
-        fontSize: 11,
-        fontWeight: FontWeight.w800,
-        color: const Color(0xFF3B82F6),
-        letterSpacing: 1.5,
-      ),
-    );
+    return Text('SELECT THE CORRECT OPTION', style: AppText.overline(color: AppColors.textMuted));
   }
 
   Widget _buildScenarioCard(Question question) {
@@ -538,60 +461,45 @@ class _McqScreenState extends State<McqScreen> {
       return const SizedBox();
     }
 
-    return Container(
-      margin: const EdgeInsets.only(bottom: 24),
-      decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.03),
-        borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
-      ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(24),
-        child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-          child: Padding(
-            padding: const EdgeInsets.all(20),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    const Icon(Icons.info_outline,
-                        color: Color(0xFF60A5FA), size: 16),
-                    const SizedBox(width: 8),
-                    Text(
-                      'SCENARIO',
-                      style: GoogleFonts.inter(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w800,
-                        color: const Color(0xFF60A5FA),
-                        letterSpacing: 1,
-                      ),
-                    ),
-                  ],
-                ),
-                if (question.scenarioText != null &&
-                    question.scenarioText!.isNotEmpty) ...[
-                  const SizedBox(height: 12),
-                  FormattedText(
-                    question.scenarioText!,
-                    style: GoogleFonts.inter(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w500,
-                      color: Colors.white.withValues(alpha: 0.9),
-                      height: 1.6,
-                    ),
-                  ),
-                ],
-                if (question.scenarioImageUrl != null &&
-                    question.scenarioImageUrl!.isNotEmpty) ...[
-                  const SizedBox(height: 16),
-                  _buildExpandableImage(question.scenarioImageUrl!),
-                ],
-              ],
-            ),
-          ),
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 16),
+      child: GlassCard(
+        accent: AppColors.cyan,
+        padding: const EdgeInsets.all(18),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const SectionLabel('Scenario', icon: Icons.info_outline_rounded, color: AppColors.cyan),
+            if (question.scenarioText != null && question.scenarioText!.isNotEmpty) ...[
+              const SizedBox(height: 12),
+              FormattedText(
+                question.scenarioText!,
+                style: AppText.style(size: 15, weight: FontWeight.w500, color: Colors.white.withValues(alpha: 0.9), height: 1.6),
+              ),
+            ],
+            if (question.scenarioImageUrl != null && question.scenarioImageUrl!.isNotEmpty) ...[
+              const SizedBox(height: 16),
+              _buildExpandableImage(question.scenarioImageUrl!),
+            ],
+          ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildQuestionCard(Question question) {
+    return GlassCard(
+      blur: true,
+      radius: AppRadius.xl,
+      padding: const EdgeInsets.all(22),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Pill(label: 'Q${_currentQuestion + 1}', color: AppColors.violet, icon: Icons.help_outline_rounded),
+          const SizedBox(height: 14),
+          _buildQuestionText(question),
+          _buildQuestionImage(question),
+        ],
       ),
     );
   }
@@ -599,13 +507,7 @@ class _McqScreenState extends State<McqScreen> {
   Widget _buildQuestionText(Question question) {
     return FormattedText(
       question.text,
-      style: GoogleFonts.inter(
-        fontSize: 22,
-        fontWeight: FontWeight.w800,
-        color: Colors.white,
-        height: 1.4,
-        letterSpacing: -0.5,
-      ),
+      style: AppText.style(size: 20, weight: FontWeight.w700, height: 1.45, spacing: -0.3),
     );
   }
 
@@ -614,7 +516,7 @@ class _McqScreenState extends State<McqScreen> {
       return const SizedBox();
     }
     return Padding(
-      padding: const EdgeInsets.only(top: 20),
+      padding: const EdgeInsets.only(top: 18),
       child: _buildExpandableImage(question.imageUrl!),
     );
   }
@@ -624,71 +526,87 @@ class _McqScreenState extends State<McqScreen> {
       onTap: () {
         showDialog(
           context: context,
-          builder: (context) => BackdropFilter(
-            filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-            child: Dialog(
-              backgroundColor: Colors.transparent,
-              insetPadding: const EdgeInsets.all(12),
-              child: Stack(
-                alignment: Alignment.center,
-                children: [
-                  InteractiveViewer(
-                    maxScale: 4.0,
-                    child: Image.network(
-                      url,
-                      fit: BoxFit.contain,
-                      errorBuilder: (context, error, stackTrace) => const Center(
-                        child: Icon(Icons.broken_image_rounded, color: Colors.white24, size: 48),
-                      ),
+          barrierColor: Colors.black.withValues(alpha: 0.85),
+          builder: (context) => Dialog(
+            backgroundColor: Colors.transparent,
+            insetPadding: const EdgeInsets.all(12),
+            shape: const RoundedRectangleBorder(),
+            child: Stack(
+              alignment: Alignment.center,
+              children: [
+                InteractiveViewer(
+                  maxScale: 4.0,
+                  child: Image.network(
+                    url,
+                    fit: BoxFit.contain,
+                    errorBuilder: (context, error, stackTrace) => const Center(
+                      child: Icon(Icons.broken_image_rounded, color: Colors.white24, size: 48),
                     ),
                   ),
-                  Positioned(
-                    top: 20,
-                    right: 20,
-                    child: IconButton(
-                      icon: const Icon(Icons.close_rounded,
-                          color: Colors.white, size: 32),
-                      onPressed: () => Navigator.pop(context),
-                    ),
+                ),
+                Positioned(
+                  top: 12,
+                  right: 12,
+                  child: GlassIconButton(
+                    icon: Icons.close_rounded,
+                    onTap: () => Navigator.pop(context),
                   ),
-                ],
-              ),
+                ),
+              ],
             ),
           ),
         );
       },
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(20),
-        child: Container(
-          color: Colors.white.withValues(alpha: 0.05),
-          child: Image.network(
-            url,
-            fit: BoxFit.cover,
-            errorBuilder: (context, error, stackTrace) => const Center(
-              child: Icon(Icons.image_not_supported_rounded, color: Colors.white10),
+      child: Stack(
+        children: [
+          ClipRRect(
+            borderRadius: BorderRadius.circular(AppRadius.md),
+            child: Container(
+              width: double.infinity,
+              color: Colors.white.withValues(alpha: 0.05),
+              child: Image.network(
+                url,
+                fit: BoxFit.cover,
+                errorBuilder: (context, error, stackTrace) => const Padding(
+                  padding: EdgeInsets.all(24),
+                  child: Center(child: Icon(Icons.image_not_supported_rounded, color: Colors.white24)),
+                ),
+                loadingBuilder: (_, child, prog) => prog == null
+                    ? child
+                    : const Padding(
+                        padding: EdgeInsets.all(32),
+                        child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
+                      ),
+              ),
             ),
-            loadingBuilder: (_, child, prog) => prog == null
-                ? child
-                : const Center(
-                    child: Padding(
-                    padding: EdgeInsets.all(32),
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  )),
           ),
-        ),
+          Positioned(
+            right: 8,
+            bottom: 8,
+            child: Container(
+              padding: const EdgeInsets.all(6),
+              decoration: BoxDecoration(
+                color: Colors.black.withValues(alpha: 0.5),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: const Icon(Icons.zoom_out_map_rounded, size: 16, color: Colors.white),
+            ),
+          ),
+        ],
       ),
     );
   }
 
   Widget _buildOptionsList(Question question) {
+    final enabled = _secondsRemaining > 0;
     return Column(
       children: List.generate(question.options.length, (i) {
         final isSelected = _selectedOption == i;
-        final label = ['A', 'B', 'C', 'D', 'E'][i];
+        final label = String.fromCharCode(65 + i);
         return Padding(
-          padding: const EdgeInsets.only(bottom: 16),
-          child: GestureDetector(
-            onTap: _secondsRemaining > 0
+          padding: const EdgeInsets.only(bottom: 12),
+          child: Pressable(
+            onTap: enabled
                 ? () {
                     setState(() {
                       _selectedOption = i;
@@ -696,81 +614,88 @@ class _McqScreenState extends State<McqScreen> {
                     });
                   }
                 : null,
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(20),
-              child: BackdropFilter(
-                filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-                child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 200),
-                  padding: const EdgeInsets.all(18),
-                  decoration: BoxDecoration(
-                    color: isSelected
-                        ? const Color(0xFF3B82F6).withValues(alpha: 0.15)
-                        : Colors.white.withValues(alpha: 0.04),
-                    borderRadius: BorderRadius.circular(20),
-                    border: Border.all(
-                      color: isSelected
-                          ? const Color(0xFF3B82F6)
-                          : Colors.white.withValues(alpha: 0.08),
-                      width: isSelected ? 2 : 1.2,
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 220),
+              curve: Curves.easeOutCubic,
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(AppRadius.md + 2),
+                gradient: isSelected
+                    ? LinearGradient(
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                        colors: [
+                          AppColors.primary.withValues(alpha: 0.30),
+                          AppColors.violet.withValues(alpha: 0.16),
+                        ],
+                      )
+                    : AppGradients.glass(),
+                border: Border.all(
+                  color: isSelected ? AppColors.primaryLight.withValues(alpha: 0.9) : AppColors.glassStroke,
+                  width: isSelected ? 1.6 : 1,
+                ),
+                boxShadow: isSelected
+                    ? [
+                        BoxShadow(
+                          color: AppColors.primary.withValues(alpha: 0.35),
+                          blurRadius: 22,
+                          spreadRadius: -6,
+                          offset: const Offset(0, 8),
+                        ),
+                      ]
+                    : null,
+              ),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  AnimatedContainer(
+                    duration: const Duration(milliseconds: 220),
+                    width: 34,
+                    height: 34,
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(11),
+                      gradient: isSelected ? AppGradients.primary : null,
+                      color: isSelected ? null : Colors.white.withValues(alpha: 0.06),
+                      border: Border.all(
+                        color: isSelected ? Colors.white.withValues(alpha: 0.3) : AppColors.glassStroke,
+                      ),
+                    ),
+                    child: Center(
+                      child: isSelected
+                          ? const Icon(Icons.check_rounded, size: 18, color: Colors.white)
+                          : Text(
+                              label,
+                              style: AppText.style(size: 14, weight: FontWeight.w800, color: AppColors.textMuted),
+                            ),
                     ),
                   ),
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Container(
-                        width: 28,
-                        height: 28,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          color: isSelected
-                              ? const Color(0xFF3B82F6)
-                              : Colors.white.withValues(alpha: 0.05),
-                          border: Border.all(
-                            color: isSelected
-                                ? const Color(0xFF3B82F6)
-                                : Colors.white.withValues(alpha: 0.2),
-                            width: 1.5,
-                          ),
-                        ),
-                        child: Center(
-                          child: Text(
-                            label,
-                            style: GoogleFonts.inter(
-                              color: isSelected ? Colors.white : Colors.white30,
-                              fontWeight: FontWeight.w900,
-                              fontSize: 13,
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: Padding(
+                      padding: const EdgeInsets.only(top: 6),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          FormattedText(
+                            question.options[i],
+                            style: AppText.style(
+                              size: 15.5,
+                              weight: isSelected ? FontWeight.w700 : FontWeight.w500,
+                              color: isSelected ? Colors.white : AppColors.textSecondary,
+                              height: 1.4,
                             ),
                           ),
-                        ),
-                      ),
-                      const SizedBox(width: 16),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            FormattedText(
-                              question.options[i],
-                              style: GoogleFonts.inter(
-                                fontSize: 16,
-                                fontWeight:
-                                    isSelected ? FontWeight.w700 : FontWeight.w500,
-                                color: isSelected ? Colors.white : Colors.white70,
-                                height: 1.4,
-                              ),
-                            ),
-                            if (question.optionImages != null &&
-                                question.optionImages!.length > i &&
-                                question.optionImages![i].isNotEmpty) ...[
-                              const SizedBox(height: 12),
-                              _buildExpandableImage(question.optionImages![i]),
-                            ],
+                          if (question.optionImages != null &&
+                              question.optionImages!.length > i &&
+                              question.optionImages![i].isNotEmpty) ...[
+                            const SizedBox(height: 12),
+                            _buildExpandableImage(question.optionImages![i]),
                           ],
-                        ),
+                        ],
                       ),
-                    ],
+                    ),
                   ),
-                ),
+                ],
               ),
             ),
           ),
@@ -781,134 +706,70 @@ class _McqScreenState extends State<McqScreen> {
 
   Widget _buildBottomActions() {
     if (_questions == null || _questions!.isEmpty) return const SizedBox();
-    
-    return Container(
-      padding: EdgeInsets.fromLTRB(24, 16, 24, 16 + MediaQuery.of(context).padding.bottom),
-      decoration: BoxDecoration(
-        color: const Color(0xFF0F172A).withValues(alpha: 0.8),
-        border: Border(top: BorderSide(color: Colors.white.withValues(alpha: 0.05))),
-      ),
-      child: Row(
-        children: [
-          // Bookmark Button (always active)
-          GestureDetector(
-            onTap: () async {
-              final newStatus = !_bookmarkedQuestions[_currentQuestion];
-              setState(() {
-                _bookmarkedQuestions[_currentQuestion] = newStatus;
-              });
-              try {
-                await FirestoreService().toggleBookmark(
-                  AppState.currentUsername ?? 'guest',
-                  _questions![_currentQuestion],
-                  newStatus,
-                );
-              } catch (e) {
-                debugPrint('Failed to toggle bookmark: $e');
-              }
-            },
-            child: AnimatedContainer(
+    final isLast = _currentQuestion >= (_questions?.length ?? 0) - 1;
+    final bookmarked = _bookmarkedQuestions[_currentQuestion];
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+      child: GlassCard(
+        blur: true,
+        radius: 26,
+        padding: const EdgeInsets.all(8),
+        child: Row(
+          children: [
+            GlassIconButton(
+              icon: bookmarked ? Icons.bookmark_rounded : Icons.bookmark_border_rounded,
+              size: 52,
+              active: bookmarked,
+              color: AppColors.warning,
+              onTap: () async {
+                final newStatus = !_bookmarkedQuestions[_currentQuestion];
+                setState(() {
+                  _bookmarkedQuestions[_currentQuestion] = newStatus;
+                });
+                try {
+                  await FirestoreService().toggleBookmark(
+                    AppState.currentUsername ?? 'guest',
+                    _questions![_currentQuestion],
+                    newStatus,
+                  );
+                } catch (e) {
+                  debugPrint('Failed to toggle bookmark: $e');
+                }
+              },
+            ),
+            const SizedBox(width: 8),
+            AnimatedOpacity(
               duration: const Duration(milliseconds: 200),
-              width: 56,
-              height: 56,
-              decoration: BoxDecoration(
-                color: _bookmarkedQuestions[_currentQuestion]
-                    ? const Color(0xFF3B82F6).withValues(alpha: 0.15)
-                    : Colors.white.withValues(alpha: 0.05),
-                borderRadius: BorderRadius.circular(18),
-                border: Border.all(
-                  color: _bookmarkedQuestions[_currentQuestion]
-                      ? const Color(0xFF3B82F6)
-                      : Colors.white.withValues(alpha: 0.1),
-                  width: 1.2,
-                ),
-              ),
-              child: Icon(
-                _bookmarkedQuestions[_currentQuestion]
-                    ? Icons.bookmark_rounded
-                    : Icons.bookmark_border_rounded,
-                color: _bookmarkedQuestions[_currentQuestion] ? const Color(0xFF60A5FA) : Colors.white24,
-                size: 24,
+              opacity: _currentQuestion > 0 ? 1.0 : 0.35,
+              child: GlassIconButton(
+                icon: Icons.chevron_left_rounded,
+                size: 52,
+                onTap: _currentQuestion > 0 ? () => _navigateToQuestion(_currentQuestion - 1) : null,
               ),
             ),
-          ),
-          const SizedBox(width: 12),
-          
-          // PREVIOUS Button (enabled only if _currentQuestion > 0)
-          GestureDetector(
-            onTap: _currentQuestion > 0 
-                ? () => _navigateToQuestion(_currentQuestion - 1)
-                : null,
-            child: AnimatedOpacity(
-              duration: const Duration(milliseconds: 200),
-              opacity: _currentQuestion > 0 ? 1.0 : 0.3,
-              child: AnimatedContainer(
-                duration: const Duration(milliseconds: 200),
-                width: 56,
-                height: 56,
-                decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.05),
-                  borderRadius: BorderRadius.circular(18),
-                  border: Border.all(
-                    color: Colors.white.withValues(alpha: 0.1),
-                    width: 1.2,
-                  ),
-                ),
-                child: const Icon(
-                  Icons.chevron_left_rounded,
-                  color: Colors.white,
-                  size: 28,
-                ),
-              ),
-            ),
-          ),
-          const SizedBox(width: 12),
-          
-          // NEXT / FINISH QUIZ Button
-          Expanded(
-            child: SizedBox(
-              height: 56,
-              child: ElevatedButton(
+            const SizedBox(width: 8),
+            Expanded(
+              child: GradientButton(
+                height: 52,
+                label: isLast ? 'Finish quiz' : 'Next',
+                icon: isLast ? Icons.flag_rounded : Icons.arrow_forward_rounded,
+                loading: _isSaving,
+                gradient: isLast
+                    ? const LinearGradient(colors: [Color(0xFF10B981), Color(0xFF22D3EE)])
+                    : AppGradients.primary,
                 onPressed: () {
-                  if (_currentQuestion < (_questions?.length ?? 0) - 1) {
+                  if (!isLast) {
                     _navigateToQuestion(_currentQuestion + 1);
                   } else {
                     _finishQuiz();
                   }
                 },
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF3B82F6),
-                  disabledBackgroundColor: Colors.white.withValues(alpha: 0.05),
-                  foregroundColor: Colors.white,
-                  shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(18)),
-                  elevation: 0,
-                ),
-                child: _isSaving
-                    ? const SizedBox(
-                        width: 24,
-                        height: 24,
-                        child: CircularProgressIndicator(
-                            color: Colors.white, strokeWidth: 2),
-                      )
-                    : Text(
-                        _currentQuestion < (_questions?.length ?? 0) - 1
-                            ? 'NEXT'
-                            : 'FINISH QUIZ',
-                        style: GoogleFonts.inter(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w900,
-                          letterSpacing: 1,
-                        ),
-                      ),
               ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
 }
-
-
-
